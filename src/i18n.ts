@@ -3,7 +3,7 @@ export type Lang = 'uk' | 'en'
 export const t = {
   uk: {
     tagline: 'агрегатор цін UA',
-    landingTitle: 'Знайди комплектуючі',
+    landingTitle: 'Знайти комплектуючі',
     landingSub: 'Оберіть категорію щоб розпочати',
     statParts: 'комплектуючих', statCategories: 'категорій', statPrices: 'ціни Rozetka',
     cpu: 'Процесори', gpu: 'Відеокарти', motherboard: 'Материнські плати',
@@ -14,7 +14,7 @@ export const t = {
     specifications: 'Характеристики',
     searching: 'Пошук…', parsing: 'Парсинг…', parsingShops: 'Парсинг магазинів…',
     refresh: '↻ Оновити', findShops: 'Знайти магазини',
-    shops: 'Магазини', viewOnRozetka: 'Переглянути на Rozetka →',
+    shops: 'Магазини', viewOnRozetka: 'Переглянути на Rozetka',
     reviews: 'відгуків', found: 'Знайдено', shopsLabel: 'магазинів', withPrice: 'з ціною',
     shopsNoPrice: (n: number) => `${n} магазинів без ціни`,
     priceNotFound: 'ціна не знайдена',

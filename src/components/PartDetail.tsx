@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Part, Category, RozetkaResult, HotlineResult } from '../types'
+import type { Part, Category, RozetkaResult, HotlineResult, HotlineShop } from '../types'
 import type { Translations } from '../i18n'
 import { IconArrow } from './Icons'
 import {
@@ -15,60 +15,60 @@ interface Props {
   part: Part; category: Category; onBack: () => void; tr: Translations
 }
 
-type RozState = { status: 'idle'|'cache'|'searching'|'parsing'|'done'|'error'; data?: RozetkaResult; error?: string; rozetkaUrl?: string; fromCache?: boolean }
-type HotState = { status: 'idle'|'cache'|'searching'|'parsing'|'done'|'error'; data?: HotlineResult; error?: string; hotlineUrl?: string; fromCache?: boolean }
+type RozState = { status: 'idle'|'searching'|'parsing'|'done'|'error'; data?: RozetkaResult; error?: string; rozetkaUrl?: string; fromCache?: boolean }
+type HotState = { status: 'idle'|'searching'|'parsing'|'done'|'error'; data?: HotlineResult; error?: string; fromCache?: boolean }
+
+function parsePrice(p: string): number {
+  const n = parseFloat(p.replace(/[^\d.]/g, ''))
+  return isNaN(n) ? Infinity : n
+}
 
 export default function PartDetail({ part, category, onBack, tr }: Props) {
-  const [roz, setRoz] = useState<RozState>({ status: 'idle' })
-  const [hot, setHot] = useState<HotState>({ status: 'idle' })
+  const [roz, setRoz]           = useState<RozState>({ status: 'idle' })
+  const [hot, setHot]           = useState<HotState>({ status: 'idle' })
+  const [lightbox, setLightbox] = useState<{ photos: string[]; idx: number } | null>(null)
+  const [tab, setTab] = useState<'shops' | 'specs'>('shops')
   const partNumbers = getPartNumbers(part)
   const cacheId = part.opendb_id
 
   useEffect(() => { handleRozetka() }, [part.opendb_id])
 
+  useEffect(() => {
+    if (!lightbox) return
+    const h = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null)
+      if (e.key === 'ArrowRight') setLightbox(l => l && { ...l, idx: (l.idx + 1) % l.photos.length })
+      if (e.key === 'ArrowLeft')  setLightbox(l => l && { ...l, idx: (l.idx - 1 + l.photos.length) % l.photos.length })
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [lightbox])
+
   async function handleRozetka(forceRefresh = false) {
-    // Check cache first
     if (!forceRefresh) {
       const cached = cacheGet(cacheId, 'rozetka')
       if (cached) {
-        console.log('[Cache] Rozetka HIT:', cached)
         setRoz({ status: 'parsing', rozetkaUrl: cached, fromCache: true })
         try {
           const data = await parseRozetka(cached)
           setRoz({ status: 'done', data, rozetkaUrl: cached, fromCache: true })
           return
-        } catch {
-          // Cache URL stale — fall through to fresh search
-          cacheInvalidate(cacheId, 'rozetka')
-        }
+        } catch { cacheInvalidate(cacheId, 'rozetka') }
       }
     }
-
     setRoz({ status: 'searching' })
     try {
       let results = await serpSearch(buildRozetkaQuery(part))
       let url = findRozetkaUrl(results)
-      if (!url && part.name) {
-        results = await serpSearch(`${part.name} site:rozetka.com.ua`)
-        url = findRozetkaUrl(results)
-      }
-      if (!url) {
-        setRoz({ status: 'error', error: `No Rozetka product page found (${results.length} results)` })
-        return
-      }
-      // Save to cache
+      if (!url && part.name) { results = await serpSearch(`${part.name} site:rozetka.com.ua`); url = findRozetkaUrl(results) }
+      if (!url) { setRoz({ status: 'error', error: `No Rozetka product page found (${results.length} results)` }); return }
       cacheSet(cacheId, 'rozetka', url)
       const serpPrice = extractRozetkaPrice(results)
       setRoz({ status: 'parsing', rozetkaUrl: url })
       const data = await parseRozetka(url)
       if (!data.price && serpPrice) data.price = serpPrice.price
-      // Passively store rating/reviews — zero API cost, feeds popularity sort
       if (data.rating || data.reviews_count) {
-        trackRozetkaData(
-          cacheId,
-          parseFloat(data.rating || '0'),
-          parseInt(data.reviews_count || '0', 10)
-        )
+        trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
       }
       setRoz({ status: 'done', data, rozetkaUrl: url })
     } catch (e) { setRoz({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
@@ -77,162 +77,291 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
   async function handleHotline(forceRefresh = false) {
     if (!forceRefresh) {
       const cached = cacheGet(cacheId, 'hotline')
-      // Validate cached URL — reject category pages that may have been cached incorrectly
-      const isValidHotlineProduct = (url: string) =>
-        /hotline\.ua\/.*\/[^/]+-[^/]+\/?$/.test(url) &&
-        !/\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/.test(url)
-
-      if (cached && isValidHotlineProduct(cached)) {
-        console.log('[Cache] Hotline HIT:', cached)
-        setHot({ status: 'parsing', hotlineUrl: cached, fromCache: true })
-        try {
-          const data = await parseHotline(cached)
-          setHot({ status: 'done', data, hotlineUrl: cached, fromCache: true })
-          return
-        } catch {
-          cacheInvalidate(cacheId, 'hotline')
-        }
-      } else if (cached && !isValidHotlineProduct(cached)) {
-        // Bad URL was cached — clear it and do fresh search
-        console.log('[Cache] Hotline INVALID cached URL, clearing:', cached)
-        cacheInvalidate(cacheId, 'hotline')
-      }
+      const isValid = (u: string) =>
+        /hotline\.ua\/.*\/[^/]+-[^/]+\/?$/.test(u) && !/\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/.test(u)
+      if (cached && isValid(cached)) {
+        setHot({ status: 'parsing', fromCache: true })
+        try { const data = await parseHotline(cached); setHot({ status: 'done', data, fromCache: true }); return }
+        catch { cacheInvalidate(cacheId, 'hotline') }
+      } else if (cached) { cacheInvalidate(cacheId, 'hotline') }
     }
-
     setHot({ status: 'searching' })
     try {
       let results = await serpSearch(buildHotlineQuery(part))
       let url = findHotlineUrl(results)
-      if (!url && part.name) {
-        results = await serpSearch(`${part.name} site:hotline.ua`)
-        url = findHotlineUrl(results)
-      }
+      if (!url && part.name) { results = await serpSearch(`${part.name} site:hotline.ua`); url = findHotlineUrl(results) }
       if (!url) { setHot({ status: 'error', error: `No shops page found (${results.length} results)` }); return }
       cacheSet(cacheId, 'hotline', url)
-      setHot({ status: 'parsing', hotlineUrl: url })
+      setHot({ status: 'parsing' })
       const data = await parseHotline(url)
-      setHot({ status: 'done', data, hotlineUrl: url })
+      setHot({ status: 'done', data })
     } catch (e) { setHot({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
   }
 
-  const specs = buildSpecList(part, category, tr)
-  const rozBusy = roz.status === 'searching' || roz.status === 'parsing' || roz.status === 'cache'
-  const hotBusy = hot.status === 'searching' || hot.status === 'parsing' || hot.status === 'cache'
+  const allPhotos = [
+    ...(hot.data?.photos ?? []),
+    ...(roz.data?.image ? [roz.data.image] : []),
+  ].filter(Boolean)
+
+  const specs   = buildSpecList(part, category, tr)
+  const rozBusy = roz.status === 'searching' || roz.status === 'parsing'
+  const hotBusy = hot.status === 'searching' || hot.status === 'parsing'
+  const mainImg = roz.data?.image || null
 
   return (
     <div className="detail">
+      {lightbox && (
+        <Lightbox
+          photos={lightbox.photos} idx={lightbox.idx}
+          onClose={() => setLightbox(null)}
+          onNext={() => setLightbox(l => l && { ...l, idx: (l.idx + 1) % l.photos.length })}
+          onPrev={() => setLightbox(l => l && { ...l, idx: (l.idx - 1 + l.photos.length) % l.photos.length })}
+        />
+      )}
+
       <button className="back-btn" onClick={onBack}>{tr.backToCatalog}</button>
 
-      <div className="detail-layout">
-        <div className="detail-left">
-          <div className="detail-header">
-            {roz.data?.image
-              ? <div className="detail-img-wrap"><img src={roz.data.image} alt={part.name} className="detail-img" /></div>
-              : rozBusy ? <div className="detail-img-wrap skeleton-img" /> : null
-            }
-            <div className="detail-title-block">
-              <div className="detail-category-badge">{category.toUpperCase()}</div>
-              <h1 className="detail-name">{part.name}</h1>
-              <p className="detail-mfr">{part.manufacturer}{part.series ? ` · ${part.series}` : ''}</p>
-              {partNumbers.length > 0 && (
-                <div className="detail-pns">
-                  {partNumbers.map(pn => <span key={pn} className="pn-badge">{pn}</span>)}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="specs-block">
-            <h2 className="block-title">{tr.specifications}</h2>
-            <table className="specs-table"><tbody>
-              {specs.map(([k, v]) => (
-                <tr key={k}><td className="spec-key">{k}</td><td className="spec-val">{v}</td></tr>
-              ))}
-            </tbody></table>
-          </div>
-
-          <div className="source-block rozetka-block">
-            <div className="source-header">
-              <h2 className="block-title">
-                <span className="source-dot dot-roz" />
-                Rozetka
-                {roz.fromCache && <span className="cache-badge">cached</span>}
-              </h2>
-              <div className="source-actions">
-                {roz.status === 'done' && roz.fromCache && (
-                  <button className="refresh-btn ghost" onClick={() => handleRozetka(true)} title="Force refresh">↺</button>
-                )}
-                <button className="refresh-btn" onClick={() => handleRozetka()} disabled={rozBusy}>
-                  {roz.status === 'searching' ? tr.searching : rozBusy ? tr.parsing : tr.refresh}
-                </button>
-              </div>
-            </div>
-            {rozBusy && <RozSkeleton />}
-            {roz.status === 'error' && <div className="error-msg"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> {roz.error}</div>}
-            {roz.status === 'done' && roz.data && <RozetkaCard data={roz.data} tr={tr} />}
-          </div>
+      {/* ── Hero: image + title + price PROMINENT ── */}
+      <div className="detail-hero">
+        {/* Photo column */}
+        <div className="detail-photo-col">
+          <PhotoViewer
+            mainImg={mainImg}
+            allPhotos={allPhotos}
+            loading={rozBusy}
+            partName={part.name}
+            onOpenLightbox={(idx) => setLightbox({ photos: allPhotos.length ? allPhotos : (mainImg ? [mainImg] : []), idx })}
+          />
         </div>
 
-        <div className="detail-right">
-          <div className="source-block hotline-block">
-            <div className="source-header">
-              <h2 className="block-title">
-                <span className="source-dot dot-hot" />
-                {tr.shops}
-                {hot.fromCache && <span className="cache-badge">cached</span>}
-              </h2>
-              {hot.status === 'idle'
-                ? <button className="hotline-trigger-btn" onClick={() => handleHotline()}>{tr.findShops}</button>
-                : <div className="source-actions">
-                    {hot.status === 'done' && hot.fromCache && (
-                      <button className="refresh-btn ghost" onClick={() => handleHotline(true)} title="Force refresh">↺</button>
-                    )}
-                    <button className="refresh-btn" onClick={() => handleHotline()} disabled={hotBusy}>
-                      {hotBusy ? tr.searching : tr.refresh}
-                    </button>
-                  </div>
-              }
+        {/* Info column */}
+        <div className="detail-info-col">
+          <div className="detail-category-badge">{category.toUpperCase()}</div>
+          <h1 className="detail-name">{part.name}</h1>
+          <p className="detail-mfr">{part.manufacturer}{part.series ? ` · ${part.series}` : ''}</p>
+          {partNumbers.length > 0 && (
+            <div className="detail-pns">
+              {partNumbers.map(pn => <span key={pn} className="pn-badge">{pn}</span>)}
             </div>
-            {hot.status === 'idle' && <div className="hotline-idle"><p>{tr.findShops}</p></div>}
-            {hotBusy && <div className="status-line"><Spinner /> {hot.status === 'searching' ? tr.searching : tr.parsingShops}</div>}
-            {hot.status === 'error' && <div className="error-msg"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> {hot.error}</div>}
-            {hot.status === 'done' && hot.data && <ShopList data={hot.data} tr={tr} />}
+          )}
+
+          {/* Price block — prominent */}
+          <div className="detail-price-block">
+            {rozBusy && <div className="detail-price-skeleton" />}
+            {roz.status === 'done' && roz.data?.price && (
+              <div className="detail-price">{roz.data.price}</div>
+            )}
+            {roz.status === 'done' && roz.data?.rating && (
+              <div className="detail-rating-row">
+                <Stars rating={parseFloat(roz.data.rating)} />
+                <span className="roz-rating-val">{roz.data.rating}</span>
+                {roz.data.reviews_count && (
+                  <span className="roz-reviews">({roz.data.reviews_count} {tr.reviews})</span>
+                )}
+              </div>
+            )}
+            {roz.status === 'done' && roz.data && (
+              <a href={roz.data.url} target="_blank" rel="noreferrer" className="detail-buy-btn">
+                {tr.viewOnRozetka}
+                <IconArrow size={14} />
+              </a>
+            )}
           </div>
+
+          {/* Rozetka refresh controls — compact */}
+          <div className="detail-roz-controls">
+            <span className="detail-roz-label">
+              <span className="source-dot dot-roz" /> Rozetka
+              {roz.fromCache && <span className="cache-badge">cached</span>}
+            </span>
+            <div className="source-actions">
+              {roz.status === 'done' && roz.fromCache && (
+                <button className="refresh-btn ghost" onClick={() => handleRozetka(true)}>↺</button>
+              )}
+              <button className="refresh-btn" onClick={() => handleRozetka()} disabled={rozBusy}>
+                {roz.status === 'searching' ? tr.searching : rozBusy ? tr.parsing : tr.refresh}
+              </button>
+            </div>
+          </div>
+          {roz.status === 'error' && <ErrMsg msg={roz.error!} />}
+
+
+        </div>
+      </div>
+
+      {/* ── Tabs: shops | specs ── */}
+      <div className="detail-tabs-section">
+        <div className="detail-tabs-nav">
+          <button
+            className={"detail-tab" + (tab === 'shops' ? ' active' : '')}
+            onClick={() => setTab('shops')}
+          >
+            <span className="source-dot dot-hot" style={{width:6,height:6}} />
+            {tr.shops}
+          </button>
+          <button
+            className={"detail-tab" + (tab === 'specs' ? ' active' : '')}
+            onClick={() => setTab('specs')}
+          >
+            {tr.specifications}
+          </button>
+        </div>
+
+        <div className="detail-tab-content">
+          {tab === 'shops' && (
+            <div className="source-block hotline-block tab-panel">
+              <div className="source-header">
+                <h2 className="block-title">
+                  <span className="source-dot dot-hot" />
+                  {tr.shops}
+                  {hot.fromCache && <span className="cache-badge">cached</span>}
+                </h2>
+                {hot.status === 'idle'
+                  ? <button className="hotline-trigger-btn" onClick={() => handleHotline()}>{tr.findShops}</button>
+                  : <div className="source-actions">
+                      {hot.status === 'done' && hot.fromCache && (
+                        <button className="refresh-btn ghost" onClick={() => handleHotline(true)}>↺</button>
+                      )}
+                      <button className="refresh-btn" onClick={() => handleHotline()} disabled={hotBusy}>
+                        {hotBusy ? tr.searching : tr.refresh}
+                      </button>
+                    </div>
+                }
+              </div>
+              {hot.status === 'idle' && <div className="hotline-idle"><p>{tr.findShops}</p></div>}
+              {hotBusy && <div className="status-line"><Spinner /> {hot.status === 'searching' ? tr.searching : tr.parsingShops}</div>}
+              {hot.status === 'error' && <ErrMsg msg={hot.error!} />}
+              {hot.status === 'done' && hot.data && <ShopList data={hot.data} tr={tr} />}
+            </div>
+          )}
+
+          {tab === 'specs' && (
+            <div className="specs-block tab-panel">
+              <table className="specs-table specs-table-sm"><tbody>
+                {specs.map(([k, v]) => (
+                  <tr key={k}><td className="spec-key">{k}</td><td className="spec-val">{v}</td></tr>
+                ))}
+              </tbody></table>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
+// ── Photo viewer with zoom controls ──────────────────────────────────────────
+function PhotoViewer({ mainImg, allPhotos, loading, partName, onOpenLightbox }: {
+  mainImg: string | null
+  allPhotos: string[]
+  loading: boolean
+  partName: string
+  onOpenLightbox: (idx: number) => void
+}) {
+  const [zoom, setZoom] = useState(1)
+  const [activeIdx, setActiveIdx] = useState(0)
+
+  const photos = allPhotos.length > 0 ? allPhotos : (mainImg ? [mainImg] : [])
+  const current = photos[activeIdx] ?? mainImg
+
+  const zoomIn  = () => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))
+  const zoomOut = () => setZoom(z => Math.max(1, +(z - 0.25).toFixed(2)))
+  const zoomReset = () => setZoom(1)
+
+  if (loading) return <div className="photo-viewer skeleton-img" />
+  if (!current) return null
+
+  return (
+    <div className="photo-viewer">
+      {/* Main image with zoom */}
+      <div className="photo-main-wrap" onClick={() => onOpenLightbox(activeIdx)}>
+        <img
+          src={current}
+          alt={partName}
+          className="photo-main-img"
+          style={{ transform: `scale(${zoom})`, cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }}
+          onClick={e => { if (zoom > 1) { e.stopPropagation(); zoomReset() } }}
+        />
+      </div>
+
+      {/* Zoom controls */}
+      <div className="photo-controls">
+        <button className="photo-ctrl-btn" onClick={zoomOut} disabled={zoom <= 1} title="Zoom out">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M8 11h6"/></svg>
+        </button>
+        <button className="photo-ctrl-zoom-val" onClick={zoomReset}>
+          {Math.round(zoom * 100)}%
+        </button>
+        <button className="photo-ctrl-btn" onClick={zoomIn} disabled={zoom >= 3} title="Zoom in">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/></svg>
+        </button>
+        <div className="photo-ctrl-sep" />
+        <button className="photo-ctrl-btn" onClick={() => onOpenLightbox(activeIdx)} title="Open fullscreen">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+      </div>
+
+      {/* Thumbnails */}
+      {photos.length > 1 && (
+        <div className="photo-thumbs">
+          {photos.map((p, i) => (
+            <button
+              key={i}
+              className={`photo-thumb${i === activeIdx ? ' active' : ''}`}
+              onClick={() => { setActiveIdx(i); setZoom(1) }}
+            >
+              <img src={p} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({ photos, idx, onClose, onNext, onPrev }: {
+  photos: string[]; idx: number
+  onClose: () => void; onNext: () => void; onPrev: () => void
+}) {
+  return (
+    <div className="lightbox" onClick={onClose}>
+      <button className="lb-close" onClick={onClose}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+      {photos.length > 1 && (
+        <button className="lb-nav lb-prev" onClick={e => { e.stopPropagation(); onPrev() }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+      )}
+      <div className="lb-img-wrap" onClick={e => e.stopPropagation()}>
+        <img src={photos[idx]} alt="" className="lb-img" />
+      </div>
+      {photos.length > 1 && (
+        <button className="lb-nav lb-next" onClick={e => { e.stopPropagation(); onNext() }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      )}
+      {photos.length > 1 && (
+        <div className="lb-counter" onClick={e => e.stopPropagation()}>{idx + 1} / {photos.length}</div>
+      )}
+      {photos.length > 1 && (
+        <div className="lb-dots" onClick={e => e.stopPropagation()}>
+          {photos.map((_, i) => <button key={i} className={`lb-dot${i === idx ? ' active' : ''}`} onClick={onClose} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function Spinner() { return <span className="spinner" /> }
 
-function RozSkeleton() {
+function ErrMsg({ msg }: { msg: string }) {
   return (
-    <div className="roz-card skeleton-roz">
-      <div className="skel skel-img" />
-      <div className="skel-info">
-        <div className="skel skel-title" /><div className="skel skel-price" /><div className="skel skel-rating" />
-      </div>
-    </div>
-  )
-}
-
-function RozetkaCard({ data, tr }: { data: RozetkaResult; tr: Translations }) {
-  return (
-    <div className="roz-card">
-      {data.image && <div className="roz-img-wrap"><img src={data.image} alt={data.title} className="roz-img" /></div>}
-      <div className="roz-info">
-        <a href={data.url} target="_blank" rel="noreferrer" className="roz-title">{data.title}</a>
-        {data.price && <div className="roz-price">{data.price}</div>}
-        {data.rating && (
-          <div className="roz-rating">
-            <Stars rating={parseFloat(data.rating)} />
-            <span className="roz-rating-val">{data.rating}</span>
-            {data.reviews_count && <span className="roz-reviews">({data.reviews_count} {tr.reviews})</span>}
-          </div>
-        )}
-        <a href={data.url} target="_blank" rel="noreferrer" className="roz-link-btn">{tr.viewOnRozetka}</a>
-      </div>
+    <div className="error-msg">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{flexShrink:0}}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      {msg}
     </div>
   )
 }
@@ -245,23 +374,31 @@ function Stars({ rating }: { rating: number }) {
   )
 }
 
+type ShopSort = 'asc' | 'desc'
+
 function ShopList({ data, tr }: { data: HotlineResult; tr: Translations }) {
+  const [sort, setSort] = useState<ShopSort>('asc')
   const shops     = data.shops.slice(1)
-  const withPrice = shops.filter(s => s.price !== '—')
-  const noPrice   = shops.filter(s => s.price === '—')
+  const withPrice = [...shops.filter(s => s.price !== '—')].sort((a, b) =>
+    sort === 'asc' ? parsePrice(a.price) - parsePrice(b.price) : parsePrice(b.price) - parsePrice(a.price)
+  )
+  const noPrice = shops.filter(s => s.price === '—')
+
   return (
     <div className="hotline-list">
       <div className="hotline-summary">
-        {tr.found} <strong>{shops.length}</strong> {tr.shopsLabel} · <strong>{withPrice.length}</strong> {tr.withPrice}
+        <span>{tr.found} <strong>{shops.length}</strong> {tr.shopsLabel} · <strong>{withPrice.length}</strong> {tr.withPrice}</span>
+        {withPrice.length > 1 && (
+          <button className="shop-sort-btn" onClick={() => setSort(s => s === 'asc' ? 'desc' : 'asc')}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+            {sort === 'asc' ? 'від дешевих' : 'від дорогих'}
+          </button>
+        )}
       </div>
-      {data.photos.length > 0 && (
-        <div className="hotline-photos">
-          {data.photos.slice(0, 3).map((p, i) => <img key={i} src={p} alt="" className="hotline-photo" />)}
-        </div>
-      )}
       <div className="shop-list">
         {withPrice.map((shop, i) => (
           <a key={i} href={shop.hotline_url} target="_blank" rel="noreferrer" className="shop-row has-price">
+            {i === 0 && <span className="shop-rank best">1</span>}
             <span className="shop-name">{shop.shop_name}</span>
             <span className="shop-price">{shop.price}</span>
             <IconArrow size={13} className="shop-arrow-icon" />
