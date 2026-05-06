@@ -108,6 +108,7 @@ img { max-width: 100%; display: block; }
   justify-content: center; padding: 60px 24px 80px;
   min-height: calc(100vh - 56px - 48px);
   text-align: center;
+  margin: -28px -32px 0;
 }
 
 /* Dot-grid background */
