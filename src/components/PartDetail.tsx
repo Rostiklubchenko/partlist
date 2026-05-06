@@ -9,6 +9,7 @@ import {
   extractRozetkaPrice,
 } from '../api'
 import { cacheGet, cacheSet, cacheInvalidate } from '../cache'
+import { trackRozetkaData } from '../popularity'
 
 interface Props {
   part: Part; category: Category; onBack: () => void; tr: Translations
@@ -61,6 +62,14 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
       setRoz({ status: 'parsing', rozetkaUrl: url })
       const data = await parseRozetka(url)
       if (!data.price && serpPrice) data.price = serpPrice.price
+      // Passively store rating/reviews — zero API cost, feeds popularity sort
+      if (data.rating || data.reviews_count) {
+        trackRozetkaData(
+          cacheId,
+          parseFloat(data.rating || '0'),
+          parseInt(data.reviews_count || '0', 10)
+        )
+      }
       setRoz({ status: 'done', data, rozetkaUrl: url })
     } catch (e) { setRoz({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
   }

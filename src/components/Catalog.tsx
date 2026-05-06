@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchParts, searchByPartNumber, isPartNumber, tokenize } from '../api'
 import FilterPanel from './Filterpanel'
+import { trackClick, sortByPopularity, statsCount } from '../popularity'
 import type { Part, Category } from '../types'
 import type { Translations } from '../i18n'
-import type { ActiveFilters } from '../Filters.ts'
+import type { ActiveFilters } from '../Filters'
 
 function partSubtitle(part: Part, cat: Category): string {
   switch (cat) {
@@ -16,6 +17,8 @@ function partSubtitle(part: Part, cat: Category): string {
     default:            return ''
   }
 }
+
+type SortMode = 'default' | 'popular'
 
 interface Props {
   category: Category
@@ -39,16 +42,22 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
   const [hasMore, setHasMore]   = useState(true)
   const [searchMode, setSearchMode] = useState<'name' | 'part' | 'fuzzy'>('name')
   const [filters, setFilters]   = useState<ActiveFilters>({})
+  const [sort, setSort]         = useState<SortMode>('default')
+  const [popCount]              = useState(() => statsCount())
+
+  const applySort = useCallback((data: Part[], mode: SortMode) =>
+    mode === 'popular' ? sortByPopularity(data) : data
+  , [])
 
   const smartLoad = useCallback(async (
-    cat: Category, q: string, off: number, activeFilters: ActiveFilters, append = false
+    cat: Category, q: string, off: number, activeFilters: ActiveFilters,
+    sortMode: SortMode, append = false
   ) => {
     setLoading(true); setError(null)
     try {
       let data: Part[] = []
 
       if (!q.trim() || Object.keys(activeFilters).length > 0) {
-        // Normal load with optional filters
         const params: Record<string, string | number> = { limit: LIMIT, offset: off, ...activeFilters }
         if (q.trim() && !isPartNumber(q)) params.name = q.trim()
         data = await fetchParts(cat, params)
@@ -74,43 +83,49 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
         setHasMore(data.length === LIMIT)
       }
 
-      setParts(prev => append ? [...prev, ...data] : data)
+      const sorted = applySort(data, sortMode)
+      setParts(prev => append ? [...prev, ...sorted] : sorted)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     } finally { setLoading(false) }
-  }, [])
+  }, [applySort])
 
   useEffect(() => {
-    setFilters({})
+    setFilters({}); setSort('default')
     setParts([]); setOffset(0); setHasMore(true)
-    if (initialPage > 0 || initialSearch) {
-      smartLoad(category, initialSearch, 0, {})
-    } else {
-      smartLoad(category, '', 0, {})
-    }
+    smartLoad(category, initialPage > 0 ? initialSearch : '', 0, {}, 'default')
   }, [category])
 
-  // Search debounce
   useEffect(() => {
     const timer = setTimeout(() => {
       setParts([]); setOffset(0)
-      smartLoad(category, search, 0, filters)
+      smartLoad(category, search, 0, filters, sort)
       onStateChange(0, search)
     }, 380)
     return () => clearTimeout(timer)
   }, [search])
 
-  // Filters change
   useEffect(() => {
     setParts([]); setOffset(0)
-    smartLoad(category, search, 0, filters)
+    smartLoad(category, search, 0, filters, sort)
   }, [filters])
+
+  // Re-sort in place when sort mode changes (no API call needed)
+  useEffect(() => {
+    setParts(prev => applySort([...prev], sort))
+  }, [sort, applySort])
 
   function loadMore() {
     const next = offset + LIMIT
     setOffset(next)
-    smartLoad(category, search, next, filters, true)
+    smartLoad(category, search, next, filters, sort, true)
     onStateChange(next, search)
+  }
+
+  function handleCardClick(part: Part) {
+    trackClick(part.opendb_id)
+    onStateChange(offset, search)
+    onSelectPart(part)
   }
 
   const catLabel = tr[category]
@@ -143,6 +158,19 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
             )}
           </div>
 
+          {/* Sort toggle */}
+          <button
+            className={`sort-btn${sort === 'popular' ? ' active' : ''}`}
+            onClick={() => setSort(s => s === 'popular' ? 'default' : 'popular')}
+            title={sort === 'popular' ? 'Sorted by popularity' : 'Sort by popularity'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3h18M3 9h12M3 15h7M3 21h4"/></svg>
+            {sort === 'popular' ? 'Popular' : 'Sort'}
+            {sort === 'popular' && popCount > 0 && (
+              <span className="sort-count">{popCount}</span>
+            )}
+          </button>
+
           <FilterPanel
             category={category}
             filters={filters}
@@ -160,21 +188,35 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
       )}
 
       <div className="parts-grid">
-        {parts.map(part => (
-          <button
-            key={part.opendb_id}
-            className="part-card"
-            onClick={() => { onStateChange(offset, search); onSelectPart(part) }}
-          >
-            <div className="part-card-cat">{catLabel}</div>
-            <div className="part-card-name">{part.name || '—'}</div>
-            <div className="part-card-mfr">{part.manufacturer}</div>
-            <div className="part-card-sub">{partSubtitle(part, category)}</div>
-            <div className="part-card-arrow">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </div>
-          </button>
-        ))}
+        {parts.map((part, idx) => {
+          const score = sort === 'popular' ? (
+            // import lazily to avoid re-importing module
+            (() => { try { const s = localStorage.getItem('partlist_pop'); return s ? (JSON.parse(s)[part.opendb_id]?.score ?? 0) : 0 } catch { return 0 } })()
+          ) : 0
+          return (
+            <button
+              key={part.opendb_id}
+              className={`part-card${sort === 'popular' && score > 0 ? ' has-score' : ''}`}
+              onClick={() => handleCardClick(part)}
+            >
+              {sort === 'popular' && idx < 3 && score > 0 && (
+                <div className="pop-rank">#{idx + 1}</div>
+              )}
+              <div className="part-card-cat">{catLabel}</div>
+              <div className="part-card-name">{part.name || '—'}</div>
+              <div className="part-card-mfr">{part.manufacturer}</div>
+              <div className="part-card-sub">{partSubtitle(part, category)}</div>
+              {sort === 'popular' && score > 0 && (
+                <div className="pop-score-bar">
+                  <div className="pop-score-fill" style={{ width: `${Math.min(100, score)}%` }} />
+                </div>
+              )}
+              <div className="part-card-arrow">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </div>
+            </button>
+          )
+        })}
         {loading && Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="part-card skeleton" />
         ))}

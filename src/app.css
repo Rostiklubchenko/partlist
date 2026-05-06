@@ -631,3 +631,42 @@ img { max-width: 100%; display: block; }
   transition: color .15s;
 }
 .filter-range-clear:hover { color: var(--accent); }
+
+/* ── Sort button ─────────────────────────────────────────────────────────────── */
+.sort-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px; height: 42px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg2); color: var(--text2);
+  font-size: .82rem; font-family: inherit;
+  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+}
+.sort-btn:hover { border-color: var(--border2); color: var(--text); }
+.sort-btn.active {
+  border-color: var(--accent); color: var(--accent);
+  background: rgba(255,107,53,.06);
+}
+.sort-count {
+  font-family: 'Space Mono', monospace; font-size: .65rem;
+  background: rgba(255,107,53,.15); color: var(--accent);
+  padding: 1px 6px; border-radius: 8px;
+}
+
+/* ── Popularity indicators on cards ─────────────────────────────────────────── */
+.pop-rank {
+  position: absolute; top: 10px; right: 32px;
+  font-family: 'Space Mono', monospace; font-size: .6rem;
+  color: var(--accent); font-weight: 700; letter-spacing: .05em;
+}
+.pop-score-bar {
+  height: 2px; width: 100%; background: var(--border);
+  border-radius: 1px; margin-top: 6px; overflow: hidden;
+}
+.pop-score-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 1px; transition: width .3s ease;
+  min-width: 4px;
+}
+.part-card.has-score::after {
+  background: var(--accent);
+}
