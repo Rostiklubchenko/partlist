@@ -103,13 +103,31 @@ export function findRozetkaUrl(results: SerpResult[]): string | null {
   return anyProduct?.link ?? null
 }
 
-const HOTLINE_PRODUCT_RE = /hotline\.ua\/ua\/[^/]+\/[^/]+\/?$/
+// Hotline product URL patterns:
+//   hotline.ua/ua/computer-processory/intel-core-i5-14400f-bx8071514400f/  ✓
+//   hotline.ua/computer-processory/intel-core-i5-14400f-bx8071514400f/     ✓
+// NOT product (rejected):
+//   hotline.ua/computer/processory/          ✗ category (no dashes, short)
+//   hotline.ua/computer-processory/fs/1493/  ✗ filter page
+const HOTLINE_PRODUCT_UA_RE  = /hotline\.ua\/ua\/[^/]+-[^/]+\/[^/]+-[^/]+\/?$/
+const HOTLINE_PRODUCT_ANY_RE = /hotline\.ua\/[^/]+-[^/]+\/[^/]+-[^/]+\/?$/
+const HOTLINE_BAD_RE = /\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/
 
 export function findHotlineUrl(results: SerpResult[]): string | null {
-  const product = results.find(r => HOTLINE_PRODUCT_RE.test(r.link))
-  if (product) return product.link
-  const any = results.find(r => r.link.includes('hotline.ua'))
-  return any?.link ?? null
+  // 1. Best: /ua/<cat-with-dash>/<slug-with-dash>/
+  const best = results.find(r =>
+    HOTLINE_PRODUCT_UA_RE.test(r.link) && !HOTLINE_BAD_RE.test(r.link)
+  )
+  if (best) return best.link
+
+  // 2. Without /ua/ prefix
+  const good = results.find(r =>
+    HOTLINE_PRODUCT_ANY_RE.test(r.link) && !HOTLINE_BAD_RE.test(r.link)
+  )
+  if (good) return good.link
+
+  // NO fallback — better to return null than cache a category page
+  return null
 }
 
 // ── Extract price from SerpApi rich_snippet ───────────────────────────────────

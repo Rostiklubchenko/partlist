@@ -670,3 +670,13 @@ img { max-width: 100%; display: block; }
 .part-card.has-score::after {
   background: var(--accent);
 }
+
+/* ── Clear cache button ──────────────────────────────────────────────────────── */
+.clear-cache-btn {
+  margin-left: auto; display: flex; align-items: center; gap: 5px;
+  font-family: 'Space Mono', monospace; font-size: .68rem;
+  color: var(--text3); padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: none; transition: all .15s;
+}
+.clear-cache-btn:hover { color: var(--roz); border-color: var(--roz); }

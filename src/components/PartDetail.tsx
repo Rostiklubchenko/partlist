@@ -77,7 +77,12 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
   async function handleHotline(forceRefresh = false) {
     if (!forceRefresh) {
       const cached = cacheGet(cacheId, 'hotline')
-      if (cached) {
+      // Validate cached URL — reject category pages that may have been cached incorrectly
+      const isValidHotlineProduct = (url: string) =>
+        /hotline\.ua\/.*\/[^/]+-[^/]+\/?$/.test(url) &&
+        !/\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/.test(url)
+
+      if (cached && isValidHotlineProduct(cached)) {
         console.log('[Cache] Hotline HIT:', cached)
         setHot({ status: 'parsing', hotlineUrl: cached, fromCache: true })
         try {
@@ -87,6 +92,10 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
         } catch {
           cacheInvalidate(cacheId, 'hotline')
         }
+      } else if (cached && !isValidHotlineProduct(cached)) {
+        // Bad URL was cached — clear it and do fresh search
+        console.log('[Cache] Hotline INVALID cached URL, clearing:', cached)
+        cacheInvalidate(cacheId, 'hotline')
       }
     }
 

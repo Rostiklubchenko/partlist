@@ -121,6 +121,7 @@ export default function App() {
         <span className="footer-desc">{tr.footerDesc}</span>
         <span className="footer-sep">·</span>
         <span className="footer-note">{tr.footerNote}</span>
+        <ClearCacheBtn tr={tr} />
       </footer>
     </div>
   )
@@ -170,5 +171,34 @@ function Landing({ tr, categories, onSelect }: {
         ))}
       </div>
     </div>
+  )
+}
+
+function ClearCacheBtn({ tr: _tr }: { tr: Translations }) {
+  const [done, setDone] = useState(false)
+
+  function clear() {
+    const keys = Object.keys(localStorage).filter(k =>
+      k.startsWith('partlist_')
+    )
+    keys.forEach(k => localStorage.removeItem(k))
+    setDone(true)
+    setTimeout(() => setDone(false), 2000)
+  }
+
+  return (
+    <button className="clear-cache-btn" onClick={clear}>
+      {done ? (
+        <>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          Cleared
+        </>
+      ) : (
+        <>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          Clear cache
+        </>
+      )}
+    </button>
   )
 }
