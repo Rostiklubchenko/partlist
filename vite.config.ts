@@ -15,9 +15,9 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/rozetka/, ''),
         changeOrigin: true,
       },
-      '/api/hotline': {
+      '/api/shops': {
         target: 'http://localhost:8000',
-        rewrite: (path) => path.replace(/^\/api\/hotline/, ''),
+        rewrite: (path) => path.replace(/^\/api\/shops/, ''),
         changeOrigin: true,
       },
       '/api/serpapi': {

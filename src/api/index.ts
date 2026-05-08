@@ -2,7 +2,7 @@ import type { Category, Part, RozetkaResult, ShopsResult } from '../types'
 
 const BC  = '/api/buildcores'
 const ROZ = '/api/rozetka'
-const SHOPS_API = '/api/hotline'
+const SHOPS_API = '/api/shops'
 
 const SERPAPI_KEY = import.meta.env.VITE_SERPAPI_KEY ?? ''
 
@@ -159,7 +159,7 @@ export async function parseRozetka(url: string): Promise<RozetkaResult> {
 
 export async function parseShops(url: string): Promise<ShopsResult> {
   const q = new URLSearchParams({ url })
-  const res = await fetch(`${SHOPS_API}/hotline?${q}`)
+  const res = await fetch(`${SHOPS_API}/shops?${q}`)
   if (!res.ok) throw new Error(`Shops parser ${res.status}`)
   return res.json()
 }
