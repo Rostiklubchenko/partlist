@@ -1,8 +1,8 @@
-import type { Category, Part, RozetkaResult, HotlineResult } from '../types'
+import type { Category, Part, RozetkaResult, ShopsResult } from '../types'
 
 const BC  = '/api/buildcores'
 const ROZ = '/api/rozetka'
-const HOT = '/api/hotline'
+const SHOPS_API = '/api/hotline'
 
 const SERPAPI_KEY = import.meta.env.VITE_SERPAPI_KEY ?? ''
 
@@ -103,26 +103,26 @@ export function findRozetkaUrl(results: SerpResult[]): string | null {
   return anyProduct?.link ?? null
 }
 
-// Hotline product URL patterns:
+// Shops page URL patterns:
 //   hotline.ua/ua/computer-processory/intel-core-i5-14400f-bx8071514400f/  ✓
 //   hotline.ua/computer-processory/intel-core-i5-14400f-bx8071514400f/     ✓
 // NOT product (rejected):
 //   hotline.ua/computer/processory/          ✗ category (no dashes, short)
 //   hotline.ua/computer-processory/fs/1493/  ✗ filter page
-const HOTLINE_PRODUCT_UA_RE  = /hotline\.ua\/ua\/[^/]+-[^/]+\/[^/]+-[^/]+\/?$/
-const HOTLINE_PRODUCT_ANY_RE = /hotline\.ua\/[^/]+-[^/]+\/[^/]+-[^/]+\/?$/
-const HOTLINE_BAD_RE = /\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/
+const SHOPS_PRODUCT_UA_RE  = /hotline\.ua\/ua\/[^/]+-[^/]+\/[^/]+-[^/]+\/?$/
+const SHOPS_PRODUCT_ANY_RE = /hotline\.ua\/[^/]+-[^/]+\/[^/]+-[^/]+\/?$/
+const SHOPS_BAD_RE = /\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/
 
-export function findHotlineUrl(results: SerpResult[]): string | null {
+export function findShopsUrl(results: SerpResult[]): string | null {
   // 1. Best: /ua/<cat-with-dash>/<slug-with-dash>/
   const best = results.find(r =>
-    HOTLINE_PRODUCT_UA_RE.test(r.link) && !HOTLINE_BAD_RE.test(r.link)
+    SHOPS_PRODUCT_UA_RE.test(r.link) && !SHOPS_BAD_RE.test(r.link)
   )
   if (best) return best.link
 
   // 2. Without /ua/ prefix
   const good = results.find(r =>
-    HOTLINE_PRODUCT_ANY_RE.test(r.link) && !HOTLINE_BAD_RE.test(r.link)
+    SHOPS_PRODUCT_ANY_RE.test(r.link) && !SHOPS_BAD_RE.test(r.link)
   )
   if (good) return good.link
 
@@ -157,10 +157,10 @@ export async function parseRozetka(url: string): Promise<RozetkaResult> {
   return res.json()
 }
 
-export async function parseHotline(url: string): Promise<HotlineResult> {
+export async function parseShops(url: string): Promise<ShopsResult> {
   const q = new URLSearchParams({ url })
-  const res = await fetch(`${HOT}/hotline?${q}`)
-  if (!res.ok) throw new Error(`Hotline parser ${res.status}`)
+  const res = await fetch(`${SHOPS_API}/hotline?${q}`)
+  if (!res.ok) throw new Error(`Shops parser ${res.status}`)
   return res.json()
 }
 
@@ -175,7 +175,7 @@ export function buildRozetkaQuery(part: Part): string {
   return `${pns[0] ?? part.name} site:rozetka.com.ua`
 }
 
-export function buildHotlineQuery(part: Part): string {
+export function buildShopsQuery(part: Part): string {
   const pns = getPartNumbers(part)
   return `${pns[0] ?? part.name} site:hotline.ua`
 }

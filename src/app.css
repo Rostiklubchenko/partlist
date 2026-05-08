@@ -522,7 +522,7 @@ img { max-width: 100%; display: block; }
 .lb-dot.active { background: #fff; }
 
 /* ── Shop sort button ────────────────────────────────────────────────────────── */
-.hotline-summary {
+.shops-summary {
   display: flex; align-items: center; justify-content: space-between;
   font-family: 'Space Mono', monospace; font-size: .72rem; color: var(--text2);
   padding: 0 0 12px; border-bottom: 1px solid rgba(255,255,255,.06); margin-bottom: 12px;
@@ -692,10 +692,10 @@ img { max-width: 100%; display: block; }
 .refresh-btn.ghost:hover { background: rgba(255,255,255,.05); color: var(--text2); }
 .cache-badge { font-family: 'Space Mono', monospace; font-size: .58rem; padding: 1px 6px; border-radius: 3px; margin-left: 6px; background: rgba(76,175,130,.12); color: var(--green); border: 1px solid rgba(76,175,130,.25); letter-spacing: .05em; }
 
-.hotline-trigger-btn { font-family: 'Space Mono', monospace; font-size: .7rem; padding: 6px 14px; background: rgba(245,166,35,.1); border: none; border-radius: 6px; color: var(--hot); transition: all .15s; }
-.hotline-trigger-btn:hover { background: rgba(245,166,35,.18); }
-.hotline-idle { padding: 16px 0; }
-.hotline-idle p { font-size: .83rem; color: var(--text3); }
+.shops-trigger-btn { font-family: 'Space Mono', monospace; font-size: .7rem; padding: 6px 14px; background: rgba(245,166,35,.1); border: none; border-radius: 6px; color: var(--hot); transition: all .15s; }
+.shops-trigger-btn:hover { background: rgba(245,166,35,.18); }
+.shops-idle { padding: 16px 0; }
+.shops-idle p { font-size: .83rem; color: var(--text3); }
 
 .status-line { display: flex; align-items: center; gap: 8px; font-family: 'Space Mono', monospace; font-size: .75rem; color: var(--text2); padding: 10px 0; flex-wrap: wrap; }
 .spinner { display: inline-block; width: 13px; height: 13px; flex-shrink: 0; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
@@ -734,8 +734,8 @@ img { max-width: 100%; display: block; }
 .clear-cache-btn:hover { color: var(--roz); background: rgba(232,77,77,.08); }
 
 /* ── Hotline photos strip ── */
-.hotline-photos { display: flex; gap: 6px; margin-bottom: 12px; }
-.hotline-photo { width: 58px; height: 58px; object-fit: contain; background: white; border-radius: 4px; }
+.shops-photos { display: flex; gap: 6px; margin-bottom: 12px; }
+.shops-photo { width: 58px; height: 58px; object-fit: contain; background: white; border-radius: 4px; }
 
 /* ── Detail layout fixes ─────────────────────────────────────────────────────── */
 
@@ -760,7 +760,7 @@ img { max-width: 100%; display: block; }
 .specs-table-sm tr:last-child { border-bottom: none; }
 
 /* Shops block inside info col */
-.detail-info-col .hotline-block {
+.detail-info-col .shops-block {
   margin-top: 4px;
   width: 100%;
   align-self: stretch;

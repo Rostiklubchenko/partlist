@@ -1,5 +1,5 @@
 // ── URL Cache ─────────────────────────────────────────────────────────────────
-// Stores found Rozetka/Hotline URLs keyed by part opendb_id + type
+// Stores found Rozetka/Shops URLs keyed by part opendb_id + type
 // TTL: 7 days (links rarely change)
 
 const CACHE_PREFIX = 'partlist_url_'
@@ -10,7 +10,7 @@ interface CacheEntry {
   ts: number
 }
 
-export function cacheGet(id: string, type: 'rozetka' | 'hotline'): string | null {
+export function cacheGet(id: string, type: 'rozetka' | 'shops'): string | null {
   try {
     const raw = localStorage.getItem(`${CACHE_PREFIX}${type}_${id}`)
     if (!raw) return null
@@ -23,14 +23,14 @@ export function cacheGet(id: string, type: 'rozetka' | 'hotline'): string | null
   } catch { return null }
 }
 
-export function cacheSet(id: string, type: 'rozetka' | 'hotline', url: string) {
+export function cacheSet(id: string, type: 'rozetka' | 'shops', url: string) {
   try {
     const entry: CacheEntry = { url, ts: Date.now() }
     localStorage.setItem(`${CACHE_PREFIX}${type}_${id}`, JSON.stringify(entry))
   } catch {}
 }
 
-export function cacheInvalidate(id: string, type: 'rozetka' | 'hotline') {
+export function cacheInvalidate(id: string, type: 'rozetka' | 'shops') {
   try {
     localStorage.removeItem(`${CACHE_PREFIX}${type}_${id}`)
   } catch {}

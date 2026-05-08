@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import type { Part, Category, RozetkaResult, HotlineResult, HotlineShop } from '../types'
+import type { Part, Category, RozetkaResult, ShopsResult, ShopEntry } from '../types'
 import type { Translations } from '../i18n'
 import { IconArrow } from './Icons'
 import {
-  serpSearch, findRozetkaUrl, findHotlineUrl,
-  parseRozetka, parseHotline,
-  buildRozetkaQuery, buildHotlineQuery, getPartNumbers,
+  serpSearch, findRozetkaUrl, findShopsUrl,
+  parseRozetka, parseShops,
+  buildRozetkaQuery, buildShopsQuery, getPartNumbers,
   extractRozetkaPrice,
 } from '../api'
 import { cacheGet, cacheSet, cacheInvalidate } from '../cache'
@@ -16,7 +16,7 @@ interface Props {
 }
 
 type RozState = { status: 'idle'|'searching'|'parsing'|'done'|'error'; data?: RozetkaResult; error?: string; rozetkaUrl?: string; fromCache?: boolean }
-type HotState = { status: 'idle'|'searching'|'parsing'|'done'|'error'; data?: HotlineResult; error?: string; fromCache?: boolean }
+type ShopsState = { status: 'idle'|'searching'|'parsing'|'done'|'error'; data?: ShopsResult; error?: string; fromCache?: boolean }
 
 function parsePrice(p: string): number {
   const n = parseFloat(p.replace(/[^\d.]/g, ''))
@@ -25,7 +25,7 @@ function parsePrice(p: string): number {
 
 export default function PartDetail({ part, category, onBack, tr }: Props) {
   const [roz, setRoz]           = useState<RozState>({ status: 'idle' })
-  const [hot, setHot]           = useState<HotState>({ status: 'idle' })
+  const [hot, setHot]           = useState<ShopsState>({ status: 'idle' })
   const [lightbox, setLightbox] = useState<{ photos: string[]; idx: number } | null>(null)
   const [tab, setTab] = useState<'shops' | 'specs'>('shops')
   const partNumbers = getPartNumbers(part)
@@ -74,26 +74,26 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
     } catch (e) { setRoz({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
   }
 
-  async function handleHotline(forceRefresh = false) {
+  async function handleShops(forceRefresh = false) {
     if (!forceRefresh) {
-      const cached = cacheGet(cacheId, 'hotline')
+      const cached = cacheGet(cacheId, 'shops')
       const isValid = (u: string) =>
         /hotline\.ua\/.*\/[^/]+-[^/]+\/?$/.test(u) && !/\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/.test(u)
       if (cached && isValid(cached)) {
         setHot({ status: 'parsing', fromCache: true })
-        try { const data = await parseHotline(cached); setHot({ status: 'done', data, fromCache: true }); return }
-        catch { cacheInvalidate(cacheId, 'hotline') }
-      } else if (cached) { cacheInvalidate(cacheId, 'hotline') }
+        try { const data = await parseShops(cached); setHot({ status: 'done', data, fromCache: true }); return }
+        catch { cacheInvalidate(cacheId, 'shops') }
+      } else if (cached) { cacheInvalidate(cacheId, 'shops') }
     }
     setHot({ status: 'searching' })
     try {
-      let results = await serpSearch(buildHotlineQuery(part))
-      let url = findHotlineUrl(results)
-      if (!url && part.name) { results = await serpSearch(`${part.name} site:hotline.ua`); url = findHotlineUrl(results) }
+      let results = await serpSearch(buildShopsQuery(part))
+      let url = findShopsUrl(results)
+      if (!url && part.name) { results = await serpSearch(`${part.name} site:hotline.ua`); url = findShopsUrl(results) }
       if (!url) { setHot({ status: 'error', error: `No shops page found (${results.length} results)` }); return }
-      cacheSet(cacheId, 'hotline', url)
+      cacheSet(cacheId, 'shops', url)
       setHot({ status: 'parsing' })
-      const data = await parseHotline(url)
+      const data = await parseShops(url)
       setHot({ status: 'done', data })
     } catch (e) { setHot({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
   }
@@ -209,7 +209,7 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
 
         <div className="detail-tab-content">
           {tab === 'shops' && (
-            <div className="source-block hotline-block tab-panel">
+            <div className="source-block shops-block tab-panel">
               <div className="source-header">
                 <h2 className="block-title">
                   <span className="source-dot dot-hot" />
@@ -217,18 +217,18 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
                   {hot.fromCache && <span className="cache-badge">cached</span>}
                 </h2>
                 {hot.status === 'idle'
-                  ? <button className="hotline-trigger-btn" onClick={() => handleHotline()}>{tr.findShops}</button>
+                  ? <button className="shops-trigger-btn" onClick={() => handleShops()}>{tr.findShops}</button>
                   : <div className="source-actions">
                       {hot.status === 'done' && hot.fromCache && (
-                        <button className="refresh-btn ghost" onClick={() => handleHotline(true)}>↺</button>
+                        <button className="refresh-btn ghost" onClick={() => handleShops(true)}>↺</button>
                       )}
-                      <button className="refresh-btn" onClick={() => handleHotline()} disabled={hotBusy}>
+                      <button className="refresh-btn" onClick={() => handleShops()} disabled={hotBusy}>
                         {hotBusy ? tr.searching : tr.refresh}
                       </button>
                     </div>
                 }
               </div>
-              {hot.status === 'idle' && <div className="hotline-idle"><p>{tr.findShops}</p></div>}
+              {hot.status === 'idle' && <div className="shops-idle"><p>{tr.findShops}</p></div>}
               {hotBusy && <div className="status-line"><Spinner /> {hot.status === 'searching' ? tr.searching : tr.parsingShops}</div>}
               {hot.status === 'error' && <ErrMsg msg={hot.error!} />}
               {hot.status === 'done' && hot.data && <ShopList data={hot.data} tr={tr} />}
@@ -376,7 +376,7 @@ function Stars({ rating }: { rating: number }) {
 
 type ShopSort = 'asc' | 'desc'
 
-function ShopList({ data, tr }: { data: HotlineResult; tr: Translations }) {
+function ShopList({ data, tr }: { data: ShopsResult; tr: Translations }) {
   const [sort, setSort] = useState<ShopSort>('asc')
   const shops     = data.shops.slice(1)
   const withPrice = [...shops.filter(s => s.price !== '—')].sort((a, b) =>
@@ -385,8 +385,8 @@ function ShopList({ data, tr }: { data: HotlineResult; tr: Translations }) {
   const noPrice = shops.filter(s => s.price === '—')
 
   return (
-    <div className="hotline-list">
-      <div className="hotline-summary">
+    <div className="shops-list">
+      <div className="shops-summary">
         <span>{tr.found} <strong>{shops.length}</strong> {tr.shopsLabel} · <strong>{withPrice.length}</strong> {tr.withPrice}</span>
         {withPrice.length > 1 && (
           <button className="shop-sort-btn" onClick={() => setSort(s => s === 'asc' ? 'desc' : 'asc')}>
@@ -397,7 +397,7 @@ function ShopList({ data, tr }: { data: HotlineResult; tr: Translations }) {
       </div>
       <div className="shop-list">
         {withPrice.map((shop, i) => (
-          <a key={i} href={shop.hotline_url} target="_blank" rel="noreferrer" className="shop-row has-price">
+          <a key={i} href={shop.shop_url} target="_blank" rel="noreferrer" className="shop-row has-price">
             {i === 0 && <span className="shop-rank best">1</span>}
             <span className="shop-name">{shop.shop_name}</span>
             <span className="shop-price">{shop.price}</span>
@@ -408,7 +408,7 @@ function ShopList({ data, tr }: { data: HotlineResult; tr: Translations }) {
           <details className="no-price-group">
             <summary className="no-price-summary">{tr.shopsNoPrice(noPrice.length)}</summary>
             {noPrice.map((shop, i) => (
-              <a key={i} href={shop.hotline_url} target="_blank" rel="noreferrer" className="shop-row">
+              <a key={i} href={shop.shop_url} target="_blank" rel="noreferrer" className="shop-row">
                 <span className="shop-name">{shop.shop_name}</span>
                 <span className="shop-price-none">{tr.priceNotFound}</span>
                 <IconArrow size={13} className="shop-arrow-icon" />

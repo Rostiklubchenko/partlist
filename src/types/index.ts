@@ -45,17 +45,17 @@ export interface RozetkaResult {
   reviews_count: string
 }
 
-export interface HotlineShop {
+export interface ShopEntry {
   shop_name: string
   price: string
-  hotline_url: string
+  shop_url: string
 }
 
-export interface HotlineResult {
+export interface ShopsResult {
   url: string
   photos: string[]
   total_shops: number
-  shops: HotlineShop[]
+  shops: ShopEntry[]
 }
 
 export interface SearxResult {
