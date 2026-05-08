@@ -26,6 +26,7 @@ export default function App() {
   const [lang, setLang] = useState<Lang>(() =>
     (localStorage.getItem('lang') as Lang) ?? 'uk'
   )
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [nav, setNav] = useState<NavState>({
     view: 'landing', category: 'cpu', part: null, catalogPage: 0, catalogSearch: '',
   })
@@ -62,18 +63,31 @@ export default function App() {
         </button>
 
         {nav.view !== 'landing' && (
-          <nav className="nav-cats">
-            {CATEGORIES.map(id => (
-              <button
-                key={id}
-                className={`nav-cat-pill${nav.category === id ? ' active' : ''}`}
-                onClick={() => goToCategory(id)}
-              >
-                <CategoryIcon id={id} size={14} />
-                <span className="nav-cat-label">{tr[id]}</span>
-              </button>
-            ))}
-          </nav>
+          <>
+            <nav className="nav-cats">
+              {CATEGORIES.map(id => (
+                <button
+                  key={id}
+                  className={`nav-cat-pill${nav.category === id ? ' active' : ''}`}
+                  onClick={() => goToCategory(id)}
+                >
+                  <CategoryIcon id={id} size={14} />
+                  <span className="nav-cat-label">{tr[id]}</span>
+                </button>
+              ))}
+            </nav>
+            {/* Mobile burger */}
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(o => !o)}
+              aria-label="Menu"
+            >
+              {mobileMenuOpen
+                ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              }
+            </button>
+          </>
         )}
 
         <div className="nav-controls">
@@ -115,6 +129,23 @@ export default function App() {
         )}
       </main>
 
+      {/* Mobile category drawer */}
+      {mobileMenuOpen && nav.view !== 'landing' && (
+        <div className="mobile-drawer" onClick={() => setMobileMenuOpen(false)}>
+          <div className="mobile-drawer-inner" onClick={e => e.stopPropagation()}>
+            {CATEGORIES.map(id => (
+              <button
+                key={id}
+                className={`mobile-drawer-item${nav.category === id ? ' active' : ''}`}
+                onClick={() => { goToCategory(id); setMobileMenuOpen(false) }}
+              >
+                <CategoryIcon id={id} size={18} />
+                <span>{tr[id]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <footer className="app-footer">
         <span className="footer-logo">[PARTLIST]</span>
         <span className="footer-sep">·</span>
