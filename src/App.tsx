@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Catalog from './components/Catalog'
 import PartDetail from './components/PartDetail'
 import { CategoryIcon, IconArrow } from './components/Icons'
+import { getAllFavs, favsCount, type FavEntry } from './favorites'
 import type { Part, Category } from './types'
 import type { Lang, Translations } from './i18n'
 import { t } from './i18n'
@@ -9,7 +10,7 @@ import './app.css'
 
 const CATEGORIES: Category[] = ['cpu', 'gpu', 'motherboard', 'ram', 'psu', 'storage']
 
-type View = 'landing' | 'catalog' | 'detail'
+type View = 'landing' | 'catalog' | 'detail' | 'favorites'
 
 interface NavState {
   view: View
@@ -27,9 +28,19 @@ export default function App() {
     (localStorage.getItem('lang') as Lang) ?? 'uk'
   )
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [nav, setNav] = useState<NavState>({
-    view: 'landing', category: 'cpu', part: null, catalogPage: 0, catalogSearch: '',
-  })
+  const [favCount, setFavCount] = useState(() => favsCount())
+  // ── History-aware navigation ─────────────────────────────────────────────
+  function stateFromHash(): NavState {
+    const hash = window.location.hash.slice(1) // remove #
+    if (!hash) return { view: 'landing', category: 'cpu', part: null, catalogPage: 0, catalogSearch: '' }
+    try {
+      return JSON.parse(decodeURIComponent(hash)) as NavState
+    } catch {
+      return { view: 'landing', category: 'cpu', part: null, catalogPage: 0, catalogSearch: '' }
+    }
+  }
+
+  const [nav, setNav] = useState<NavState>(stateFromHash)
 
   const tr = t[lang]
 
@@ -40,14 +51,58 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('lang', lang) }, [lang])
 
+  // Keep favCount in sync whenever favorites change (from any component)
+  useEffect(() => {
+    const sync = () => setFavCount(favsCount())
+    window.addEventListener('favs-updated', sync)
+    return () => window.removeEventListener('favs-updated', sync)
+  }, [])
+
+  // Push a new nav state into browser history
+  const pushNav = useCallback((next: NavState) => {
+    const hash = encodeURIComponent(JSON.stringify(next))
+    window.history.pushState(next, '', '#' + hash)
+    setNav(next)
+  }, [])
+
+  // Listen to browser back/forward
+  useEffect(() => {
+    const handler = (e: PopStateEvent) => {
+      if (e.state) {
+        setNav(e.state as NavState)
+      } else {
+        setNav({ view: 'landing', category: 'cpu', part: null, catalogPage: 0, catalogSearch: '' })
+      }
+    }
+    window.addEventListener('popstate', handler)
+    // Replace current entry so first back goes to landing
+    const initial = stateFromHash()
+    window.history.replaceState(initial, '', window.location.hash || '#' + encodeURIComponent(JSON.stringify(initial)))
+    return () => window.removeEventListener('popstate', handler)
+  }, [])
+
   function goToCategory(cat: Category) {
-    setNav({ view: 'catalog', category: cat, part: null, catalogPage: 0, catalogSearch: '' })
+    pushNav({ view: 'catalog', category: cat, part: null, catalogPage: 0, catalogSearch: '' })
   }
   function goToDetail(part: Part) {
-    setNav(n => ({ ...n, view: 'detail', part }))
+    setNav(n => {
+      const next = { ...n, view: 'detail' as View, part }
+      const hash = encodeURIComponent(JSON.stringify(next))
+      window.history.pushState(next, '', '#' + hash)
+      return next
+    })
   }
+  function refreshFavCount() { setFavCount(favsCount()) }
   function goBackToCatalog() {
-    setNav(n => ({ ...n, view: 'catalog', part: null }))
+    window.history.back()
+  }
+  function goToFavorites() {
+    setNav(n => {
+      const next = { ...n, view: 'favorites' as View }
+      const hash = encodeURIComponent(JSON.stringify(next))
+      window.history.pushState(next, '', '#' + hash)
+      return next
+    })
   }
   function saveCatalogState(page: number, search: string) {
     setNav(n => ({ ...n, catalogPage: page, catalogSearch: search }))
@@ -56,7 +111,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="navbar">
-        <button className="nav-logo" onClick={() => setNav(n => ({ ...n, view: 'landing' }))}>
+        <button className="nav-logo" onClick={() => pushNav({ view: 'landing', category: nav.category, part: null, catalogPage: 0, catalogSearch: '' })}>
           <span className="logo-bracket">[</span>
           <span className="logo-text">PARTLIST</span>
           <span className="logo-bracket">]</span>
@@ -91,6 +146,14 @@ export default function App() {
         )}
 
         <div className="nav-controls">
+          <button
+            className={`ctrl-btn nav-fav-btn${nav.view === 'favorites' ? ' active' : ''}`}
+            onClick={goToFavorites}
+            title={tr.favorites}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={nav.view === 'favorites' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            {favCount > 0 && <span className="nav-fav-count">{favCount}</span>}
+          </button>
           <button className="ctrl-btn" onClick={() => setLang(l => l === 'uk' ? 'en' : 'uk')}>
             {lang === 'uk' ? 'EN' : 'УК'}
           </button>
@@ -117,6 +180,19 @@ export default function App() {
             initialSearch={nav.catalogSearch}
             onStateChange={saveCatalogState}
             tr={tr}
+          />
+        )}
+        {nav.view === 'favorites' && (
+          <Catalog
+            category={nav.category}
+            onCategoryChange={goToCategory}
+            onSelectPart={goToDetail}
+            initialPage={0}
+            initialSearch=""
+            onStateChange={saveCatalogState}
+            tr={tr}
+            favsMode={true}
+            favParts={getAllFavs()}
           />
         )}
         {nav.view === 'detail' && nav.part && (
@@ -152,6 +228,7 @@ export default function App() {
         <span className="footer-desc">{tr.footerDesc}</span>
         <span className="footer-sep">·</span>
         <span className="footer-note">{tr.footerNote}</span>
+
         <ClearCacheBtn tr={tr} />
       </footer>
     </div>

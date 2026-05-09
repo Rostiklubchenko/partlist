@@ -9,6 +9,7 @@ import {
   extractRozetkaPrice,
 } from '../api'
 import { cacheGet, cacheSet, cacheInvalidate } from '../cache'
+import { toggleFav, isFav } from '../favorites'
 import { trackRozetkaData } from '../popularity'
 
 interface Props {
@@ -27,11 +28,12 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
   const [roz, setRoz]           = useState<RozState>({ status: 'idle' })
   const [hot, setHot]           = useState<ShopsState>({ status: 'idle' })
   const [lightbox, setLightbox] = useState<{ photos: string[]; idx: number } | null>(null)
+  const [liked, setLiked] = useState(() => isFav(part.opendb_id))
   const [tab, setTab] = useState<'shops' | 'specs'>('shops')
   const partNumbers = getPartNumbers(part)
   const cacheId = part.opendb_id
 
-  useEffect(() => { handleRozetka() }, [part.opendb_id])
+  useEffect(() => { handleRozetka(); setLiked(isFav(part.opendb_id)) }, [part.opendb_id])
 
   useEffect(() => {
     if (!lightbox) return
@@ -144,6 +146,15 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
               {partNumbers.map(pn => <span key={pn} className="pn-badge">{pn}</span>)}
             </div>
           )}
+
+          <button
+            className={"detail-fav-btn" + (liked ? " liked" : "")}
+            onClick={() => { const now = toggleFav(part, category); setLiked(now) }}
+            title={liked ? tr.removeFromFavs : tr.addToFavs}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            {liked ? tr.removeFromFavs : tr.addToFavs}
+          </button>
 
           {/* Price block — prominent */}
           <div className="detail-price-block">

@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchParts, searchByPartNumber, isPartNumber, tokenize } from '../api'
 import FilterPanel from './Filterpanel'
 import { trackClick, sortByPopularity, statsCount } from '../popularity'
+import { toggleFav, isFav, getAllFavs } from '../favorites.ts'
 import type { Part, Category } from '../types'
 import type { Translations } from '../i18n'
-import type { ActiveFilters } from '../Filters'
+import type { ActiveFilters } from '../filters.ts'
 
 function partSubtitle(part: Part, cat: Category): string {
   switch (cat) {
@@ -28,26 +29,36 @@ interface Props {
   initialSearch: string
   onStateChange: (page: number, search: string) => void
   tr: Translations
+  // favorites mode
+  favsMode?: boolean
+  favParts?: { part: Part; category: Category }[]
 }
 
 const LIMIT = 40
 const API_BASE = '/api/buildcores'
 
-export default function Catalog({ category, onSelectPart, initialPage, initialSearch, onStateChange, tr }: Props) {
-  const [parts, setParts]       = useState<Part[]>([])
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [search, setSearch]     = useState(initialSearch)
-  const [offset, setOffset]     = useState(initialPage)
-  const [hasMore, setHasMore]   = useState(true)
+export default function Catalog({ category, onSelectPart, initialPage, initialSearch, onStateChange, tr, favsMode, favParts }: Props) {
+  const [parts, setParts]           = useState<Part[]>([])
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+  const [search, setSearch]         = useState(initialSearch)
+  const [offset, setOffset]         = useState(initialPage)
+  const [hasMore, setHasMore]       = useState(true)
   const [searchMode, setSearchMode] = useState<'name' | 'part' | 'fuzzy'>('name')
-  const [filters, setFilters]   = useState<ActiveFilters>({})
-  const [sort, setSort]         = useState<SortMode>('default')
-  const [popCount]              = useState(() => statsCount())
+  const [filters, setFilters]       = useState<ActiveFilters>({})
+  const [sort, setSort]             = useState<SortMode>('default')
+  const [favs, setFavs]             = useState<Record<string, boolean>>({})
+  const [popCount]                  = useState(() => statsCount())
+
+  // keep fav state in sync
+  function refreshFavs(list: Part[]) {
+    const map: Record<string, boolean> = {}
+    list.forEach(p => { map[p.opendb_id] = isFav(p.opendb_id) })
+    setFavs(map)
+  }
 
   const applySort = useCallback((data: Part[], mode: SortMode) =>
-    mode === 'popular' ? sortByPopularity(data) : data
-  , [])
+    mode === 'popular' ? sortByPopularity(data) : data, [])
 
   const smartLoad = useCallback(async (
     cat: Category, q: string, off: number, activeFilters: ActiveFilters,
@@ -56,7 +67,6 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
     setLoading(true); setError(null)
     try {
       let data: Part[] = []
-
       if (!q.trim() || Object.keys(activeFilters).length > 0) {
         const params: Record<string, string | number> = { limit: LIMIT, offset: off, ...activeFilters }
         if (q.trim() && !isPartNumber(q)) params.name = q.trim()
@@ -82,21 +92,27 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
         }
         setHasMore(data.length === LIMIT)
       }
-
       const sorted = applySort(data, sortMode)
       setParts(prev => append ? [...prev, ...sorted] : sorted)
+      refreshFavs(sorted)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     } finally { setLoading(false) }
   }, [applySort])
 
   useEffect(() => {
+    if (favsMode) {
+      const data = (favParts ?? []).map(f => f.part)
+      setParts(data); refreshFavs(data); setLoading(false)
+      return
+    }
     setFilters({}); setSort('default')
     setParts([]); setOffset(0); setHasMore(true)
     smartLoad(category, initialPage > 0 ? initialSearch : '', 0, {}, 'default')
-  }, [category])
+  }, [category, favsMode])
 
   useEffect(() => {
+    if (favsMode) return
     const timer = setTimeout(() => {
       setParts([]); setOffset(0)
       smartLoad(category, search, 0, filters, sort)
@@ -106,12 +122,12 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
   }, [search])
 
   useEffect(() => {
-    setParts([]); setOffset(0)
-    smartLoad(category, search, 0, filters, sort)
+    if (favsMode) return
+    setParts([]); setOffset(0); smartLoad(category, search, 0, filters, sort)
   }, [filters])
 
-  // Re-sort in place when sort mode changes (no API call needed)
   useEffect(() => {
+    if (favsMode) return
     setParts(prev => applySort([...prev], sort))
   }, [sort, applySort])
 
@@ -122,19 +138,30 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
     onStateChange(next, search)
   }
 
+  function handleFavClick(e: React.MouseEvent, part: Part) {
+    e.stopPropagation()
+    const nowFav = toggleFav(part, category)
+    setFavs(prev => ({ ...prev, [part.opendb_id]: nowFav }))
+    if (favsMode && !nowFav) {
+      setParts(prev => prev.filter(p => p.opendb_id !== part.opendb_id))
+    }
+  }
+
   function handleCardClick(part: Part) {
     trackClick(part.opendb_id)
     onStateChange(offset, search)
     onSelectPart(part)
   }
 
-  const catLabel = tr[category]
+  const catLabel = favsMode ? tr.favorites : tr[category]
+  const displayParts = favsMode
+    ? parts.filter(p => search ? p.name?.toLowerCase().includes(search.toLowerCase()) : true)
+    : parts
 
   return (
     <div className="catalog">
       <div className="catalog-topbar">
         <h2 className="catalog-heading">{catLabel}</h2>
-
         <div className="catalog-controls">
           <div className="search-bar">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="search-icon"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -146,10 +173,8 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
             />
             {search && (
               <>
-                {searchMode !== 'name' && (
-                  <span className={`search-mode-badge ${searchMode}`}>
-                    {searchMode === 'part' ? '#' : '~'}
-                  </span>
+                {!favsMode && searchMode !== 'name' && (
+                  <span className={`search-mode-badge ${searchMode}`}>{searchMode === 'part' ? '#' : '~'}</span>
                 )}
                 <button className="search-clear" onClick={() => setSearch('')}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -158,25 +183,19 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
             )}
           </div>
 
-          {/* Sort toggle */}
-          <button
-            className={`sort-btn${sort === 'popular' ? ' active' : ''}`}
-            onClick={() => setSort(s => s === 'popular' ? 'default' : 'popular')}
-            title={sort === 'popular' ? 'Sorted by popularity' : 'Sort by popularity'}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3h18M3 9h12M3 15h7M3 21h4"/></svg>
-            {sort === 'popular' ? 'Popular' : 'Sort'}
-            {sort === 'popular' && popCount > 0 && (
-              <span className="sort-count">{popCount}</span>
-            )}
-          </button>
-
-          <FilterPanel
-            category={category}
-            filters={filters}
-            onChange={setFilters}
-            apiBase={API_BASE}
-          />
+          {!favsMode && (
+            <>
+              <button
+                className={`sort-btn${sort === 'popular' ? ' active' : ''}`}
+                onClick={() => setSort(s => s === 'popular' ? 'default' : 'popular')}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3h18M3 9h12M3 15h7M3 21h4"/></svg>
+                {sort === 'popular' ? 'Popular' : 'Sort'}
+                {sort === 'popular' && popCount > 0 && <span className="sort-count">{popCount}</span>}
+              </button>
+              <FilterPanel category={category} filters={filters} onChange={setFilters} apiBase={API_BASE} />
+            </>
+          )}
         </div>
       </div>
 
@@ -187,30 +206,34 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
         </div>
       )}
 
+      {favsMode && displayParts.length === 0 && (
+        <div className="empty-msg favs-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <p>{tr.noFavorites}</p>
+        </div>
+      )}
+
       <div className="parts-grid">
-        {parts.map((part, idx) => {
-          const score = sort === 'popular' ? (
-            // import lazily to avoid re-importing module
-            (() => { try { const s = localStorage.getItem('partlist_pop'); return s ? (JSON.parse(s)[part.opendb_id]?.score ?? 0) : 0 } catch { return 0 } })()
-          ) : 0
+        {displayParts.map((part, idx) => {
+          const score = sort === 'popular' ? (() => { try { const s = localStorage.getItem('partlist_pop'); return s ? (JSON.parse(s)[part.opendb_id]?.score ?? 0) : 0 } catch { return 0 } })() : 0
+          const liked = favs[part.opendb_id] ?? false
           return (
-            <button
-              key={part.opendb_id}
-              className={`part-card${sort === 'popular' && score > 0 ? ' has-score' : ''}`}
-              onClick={() => handleCardClick(part)}
-            >
-              {sort === 'popular' && idx < 3 && score > 0 && (
-                <div className="pop-rank">#{idx + 1}</div>
-              )}
-              <div className="part-card-cat">{catLabel}</div>
+            <button key={part.opendb_id} className={`part-card${sort === 'popular' && score > 0 ? ' has-score' : ''}`} onClick={() => handleCardClick(part)}>
+              {sort === 'popular' && idx < 3 && score > 0 && <div className="pop-rank">#{idx + 1}</div>}
+              <div className="part-card-cat">{favsMode ? (part as Part & {_catLabel?: string})._catLabel ?? category : catLabel}</div>
               <div className="part-card-name">{part.name || '—'}</div>
               <div className="part-card-mfr">{part.manufacturer}</div>
               <div className="part-card-sub">{partSubtitle(part, category)}</div>
               {sort === 'popular' && score > 0 && (
-                <div className="pop-score-bar">
-                  <div className="pop-score-fill" style={{ width: `${Math.min(100, score)}%` }} />
-                </div>
+                <div className="pop-score-bar"><div className="pop-score-fill" style={{ width: `${Math.min(100, score)}%` }} /></div>
               )}
+              <button
+                className={`fav-btn${liked ? ' liked' : ''}`}
+                onClick={e => handleFavClick(e, part)}
+                title={liked ? tr.removeFromFavs : tr.addToFavs}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </button>
               <div className="part-card-arrow">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
               </div>
@@ -222,12 +245,12 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
         ))}
       </div>
 
-      {!loading && hasMore && parts.length > 0 && (
+      {!favsMode && !loading && hasMore && parts.length > 0 && (
         <div className="load-more-wrap">
           <button className="load-more-btn" onClick={loadMore}>{tr.loadMore}</button>
         </div>
       )}
-      {!loading && parts.length === 0 && !error && (
+      {!favsMode && !loading && parts.length === 0 && !error && (
         <div className="empty-msg">{tr.noResults}</div>
       )}
     </div>

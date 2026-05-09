@@ -3,7 +3,7 @@ export type Lang = 'uk' | 'en'
 export const t = {
   uk: {
     tagline: 'агрегатор цін UA',
-    landingTitle: 'Знайти комплектуючі',
+    landingTitle: 'Знайди комплектуючі',
     landingSub: 'Оберіть категорію щоб розпочати',
     statParts: 'комплектуючих', statCategories: 'категорій', statPrices: 'ціни Rozetka',
     cpu: 'Процесори', gpu: 'Відеокарти', motherboard: 'Материнські плати',
@@ -14,7 +14,7 @@ export const t = {
     specifications: 'Характеристики',
     searching: 'Пошук…', parsing: 'Парсинг…', parsingShops: 'Парсинг магазинів…',
     refresh: '↻ Оновити', findShops: 'Знайти магазини',
-    shops: 'Магазини', viewOnRozetka: 'Переглянути на Rozetka',
+    shops: 'Магазини', viewOnRozetka: 'Переглянути на Rozetka →',
     reviews: 'відгуків', found: 'Знайдено', shopsLabel: 'магазинів', withPrice: 'з ціною',
     shopsNoPrice: (n: number) => `${n} магазинів без ціни`,
     priceNotFound: 'ціна не знайдена',
@@ -34,6 +34,7 @@ export const t = {
     pcie62: 'PCIe 6+2-pin', sataConn: 'SATA конектори', storageType: 'Тип',
     readSpeed: 'Читання', writeSpeed: 'Запис', cache: 'Кеш', rpm: 'Обороти',
     nvme: 'NVMe', yes: 'Так', no: 'Ні',
+    favorites: 'Вибране', noFavorites: 'Вибраних товарів поки немає', addToFavs: 'Додати до вибраного', removeFromFavs: 'Видалити з вибраного',
     footerDesc: 'Агрегатор цін на комп\'ютерні комплектуючі',
     footerNote: 'Дані з BuildCores Open DB. Ціни з Rozetka.ua.',
   },
@@ -68,6 +69,7 @@ export const t = {
     pcie62: 'PCIe 6+2-pin', sataConn: 'SATA connectors', storageType: 'Type',
     readSpeed: 'Read speed', writeSpeed: 'Write speed', cache: 'Cache', rpm: 'RPM',
     nvme: 'NVMe', yes: 'Yes', no: 'No',
+    favorites: 'Favorites', noFavorites: 'No favorites yet', addToFavs: 'Add to favorites', removeFromFavs: 'Remove from favorites',
     footerDesc: 'PC parts price aggregator',
     footerNote: 'Data from BuildCores Open DB. Prices from Rozetka.ua.',
   },
