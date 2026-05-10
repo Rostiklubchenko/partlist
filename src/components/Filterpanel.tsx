@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Category } from '../types/index.ts'
-import { FILTER_CONFIGS, FIXED_OPTIONS, fetchFilterOptions, type ActiveFilters } from '../Filters.ts'
+import { FILTER_CONFIGS, FIXED_OPTIONS, fetchFilterOptions, type ActiveFilters } from '../filters.ts'
 
 interface Props {
   category: Category
