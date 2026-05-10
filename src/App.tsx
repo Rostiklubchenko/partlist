@@ -3,6 +3,8 @@ import Catalog from './components/Catalog'
 import PartDetail from './components/PartDetail'
 import { CategoryIcon, IconArrow } from './components/Icons'
 import { getAllFavs, favsCount, type FavEntry } from './favorites'
+import { buildCount } from './builder'
+import Builder from './components/Builder'
 import type { Part, Category } from './types'
 import type { Lang, Translations } from './i18n'
 import { t } from './i18n'
@@ -10,7 +12,7 @@ import './app.css'
 
 const CATEGORIES: Category[] = ['cpu', 'gpu', 'motherboard', 'ram', 'psu', 'storage']
 
-type View = 'landing' | 'catalog' | 'detail' | 'favorites'
+type View = 'landing' | 'catalog' | 'detail' | 'favorites' | 'builder'
 
 interface NavState {
   view: View
@@ -18,6 +20,7 @@ interface NavState {
   part: Part | null
   catalogPage: number
   catalogSearch: string
+  pickingSlot?: Category  // set when user is picking a part for the builder
 }
 
 export default function App() {
@@ -29,6 +32,7 @@ export default function App() {
   )
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [favCount, setFavCount] = useState(() => favsCount())
+  const [buildSlots, setBuildSlots] = useState(() => buildCount())
   // ── History-aware navigation ─────────────────────────────────────────────
   function stateFromHash(): NavState {
     const hash = window.location.hash.slice(1) // remove #
@@ -56,6 +60,12 @@ export default function App() {
     const sync = () => setFavCount(favsCount())
     window.addEventListener('favs-updated', sync)
     return () => window.removeEventListener('favs-updated', sync)
+  }, [])
+
+  useEffect(() => {
+    const syncBuild = () => setBuildSlots(buildCount())
+    window.addEventListener('build-updated', syncBuild)
+    return () => window.removeEventListener('build-updated', syncBuild)
   }, [])
 
   // Push a new nav state into browser history
@@ -93,6 +103,9 @@ export default function App() {
     })
   }
   function refreshFavCount() { setFavCount(favsCount()) }
+  function goToBuilder() {
+    setNav(n => { const next = { ...n, view: 'builder' as View, pickingSlot: undefined }; const hash = encodeURIComponent(JSON.stringify(next)); window.history.pushState(next, '', '#' + hash); return next })
+  }
   function goBackToCatalog() {
     window.history.back()
   }
@@ -147,6 +160,14 @@ export default function App() {
 
         <div className="nav-controls">
           <button
+            className={`ctrl-btn nav-builder-btn${nav.view === 'builder' ? ' active' : ''}`}
+            onClick={goToBuilder}
+            title="PC Builder"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            {buildSlots > 0 && <span className="nav-build-count">{buildSlots}</span>}
+          </button>
+          <button
             className={`ctrl-btn nav-fav-btn${nav.view === 'favorites' ? ' active' : ''}`}
             onClick={goToFavorites}
             title={tr.favorites}
@@ -180,6 +201,23 @@ export default function App() {
             initialSearch={nav.catalogSearch}
             onStateChange={saveCatalogState}
             tr={tr}
+            pickingSlot={nav.pickingSlot}
+            onPicked={() => {
+              setNav(n => { const next = { ...n, view: 'builder' as View, pickingSlot: undefined }; const hash = encodeURIComponent(JSON.stringify(next)); window.history.pushState(next, '', '#' + hash); return next })
+            }}
+          />
+        )}
+        {nav.view === 'builder' && (
+          <Builder
+            tr={tr}
+            onSelectSlot={(cat) => {
+              setNav(n => {
+                const next = { ...n, view: 'catalog' as View, category: cat as Category, pickingSlot: cat as Category, catalogPage: 0, catalogSearch: '' }
+                const hash = encodeURIComponent(JSON.stringify(next))
+                window.history.pushState(next, '', '#' + hash)
+                return next
+              })
+            }}
           />
         )}
         {nav.view === 'favorites' && (
