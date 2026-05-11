@@ -6,9 +6,12 @@ import type { Part, Category } from '../types'
 import type { Translations } from '../i18n'
 import { CategoryIcon } from './Icons'
 
-const SLOT_LABELS: Record<BuildSlot, string> = {
-  cpu: 'CPU', motherboard: 'Motherboard', ram: 'RAM',
-  gpu: 'GPU', psu: 'PSU', storage: 'Storage',
+function getSlotLabel(slot: BuildSlot, tr: Translations): string {
+  const labels: Record<BuildSlot, string> = {
+    cpu: tr.cpu, motherboard: tr.motherboard, ram: tr.ram,
+    gpu: tr.gpu, psu: tr.psu, storage: tr.storage,
+  }
+  return labels[slot]
 }
 
 interface Props { tr: Translations; onSelectSlot: (cat: Category) => void }
@@ -46,13 +49,13 @@ export default function Builder({ tr, onSelectSlot }: Props) {
         <div className="builder-title-row">
           <h2 className="builder-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-            PC Builder
+            {tr.builderTitle}
           </h2>
           <div className="builder-meta">
-            <span className="builder-progress">{filled} / {SLOTS.length}</span>
+            <span className="builder-progress">{tr.builderProgress(filled, SLOTS.length)}</span>
             {filled > 0 && (
               <button className="builder-clear-btn" onClick={handleClear}>
-                {cleared ? '✓ Cleared' : 'Clear all'}
+                {cleared ? tr.builderCleared : tr.builderClearAll}
               </button>
             )}
           </div>
@@ -87,7 +90,7 @@ export default function Builder({ tr, onSelectSlot }: Props) {
               </div>
 
               <div className="builder-slot-info">
-                <div className="builder-slot-label">{SLOT_LABELS[slot]}</div>
+                <div className="builder-slot-label">{getSlotLabel(slot, tr)}</div>
                 {entry ? (
                   <>
                     <div className="builder-slot-name">{entry.part.name}</div>
@@ -96,7 +99,7 @@ export default function Builder({ tr, onSelectSlot }: Props) {
                     )}
                   </>
                 ) : (
-                  <div className="builder-slot-empty">Not selected</div>
+                  <div className="builder-slot-empty">{tr.builderNotSelected}</div>
                 )}
               </div>
 
@@ -110,7 +113,7 @@ export default function Builder({ tr, onSelectSlot }: Props) {
                   className="builder-slot-pick"
                   onClick={() => onSelectSlot(slot as Category)}
                 >
-                  {entry ? 'Change' : 'Pick'}
+                  {entry ? tr.builderChange : tr.builderPick}
                 </button>
               </div>
             </div>

@@ -216,10 +216,10 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
                 onClick={() => setSort(s => s === 'popular' ? 'default' : 'popular')}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3h18M3 9h12M3 15h7M3 21h4"/></svg>
-                {sort === 'popular' ? 'Popular' : 'Sort'}
+                {sort === 'popular' ? tr.sortPopular : tr.sortDefault}
                 {sort === 'popular' && popCount > 0 && <span className="sort-count">{popCount}</span>}
               </button>
-              <FilterPanel category={category} filters={filters} onChange={setFilters} apiBase={API_BASE} />
+              <FilterPanel category={category} filters={filters} onChange={setFilters} apiBase={API_BASE} tr={tr} />
             </>
           )}
         </div>
@@ -228,7 +228,7 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
         <div className="pick-filter-notice">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           {filterReason}
-          <button className="pick-filter-clear" onClick={() => setFilters({})}>clear</button>
+          <button className="pick-filter-clear" onClick={() => setFilters({})}>{tr.pickFilterClear}</button>
         </div>
       )}
       {error && (

@@ -156,15 +156,15 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
               title={liked ? tr.removeFromFavs : tr.addToFavs}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-              {liked ? 'Збережено' : tr.addToFavs}
+              {liked ? tr.savedToFavs : tr.addToFavs}
             </button>
             <button
               className={"detail-action-btn build-action" + (inBuild ? " added" : "")}
               onClick={() => { setBuildPart(category, part); setInBuild(true) }}
-              title={inBuild ? "In PC Build" : "Add to PC Build"}
+              title={inBuild ? tr.inBuildTitle : tr.addToBuildTitle}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-              {inBuild ? 'В збірці' : 'До збірки'}
+              {inBuild ? tr.inBuild : tr.addToBuild}
             </button>
           </div>
 
@@ -414,7 +414,7 @@ function ShopList({ data, tr }: { data: ShopsResult; tr: Translations }) {
         {withPrice.length > 1 && (
           <button className="shop-sort-btn" onClick={() => setSort(s => s === 'asc' ? 'desc' : 'asc')}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
-            {sort === 'asc' ? 'від дешевих' : 'від дорогих'}
+            {sort === 'asc' ? tr.fromCheap : tr.fromExpensive}
           </button>
         )}
       </div>
