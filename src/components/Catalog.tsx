@@ -3,7 +3,7 @@ import { fetchParts, searchByPartNumber, isPartNumber, tokenize } from '../api'
 import FilterPanel from './Filterpanel'
 import { trackClick, sortByPopularity, statsCount } from '../popularity'
 import { toggleFav, isFav, getAllFavs } from '../favorites'
-import { setBuildPart, getBuild } from '../builder'
+import { setBuildPart, getBuild, getPickFilters, getFilterReason } from '../builder'
 import type { Part, Category } from '../types'
 import type { Translations } from '../i18n'
 import type { ActiveFilters } from '../filters'
@@ -33,12 +33,14 @@ interface Props {
   // favorites mode
   favsMode?: boolean
   favParts?: { part: Part; category: Category }[]
+  // builder slot being picked — activates auto-filters
+  pickingSlot?: Category
 }
 
 const LIMIT = 40
 const API_BASE = '/api/buildcores'
 
-export default function Catalog({ category, onSelectPart, initialPage, initialSearch, onStateChange, tr, favsMode, favParts }: Props) {
+export default function Catalog({ category, onSelectPart, initialPage, initialSearch, onStateChange, tr, favsMode, favParts, pickingSlot }: Props) {
   const [parts, setParts]           = useState<Part[]>([])
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
@@ -74,7 +76,7 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
     setLoading(true); setError(null)
     try {
       let data: Part[] = []
-      if (!q.trim() || Object.keys(activeFilters).length > 0) {
+      if (!q.trim() || Object.keys(activeFilters).length > 0 || (!isPartNumber(q) && tokenize(q).length === 0)) {
         const params: Record<string, string | number> = { limit: LIMIT, offset: off, ...activeFilters }
         if (q.trim() && !isPartNumber(q)) params.name = q.trim()
         data = await fetchParts(cat, params)
@@ -113,16 +115,18 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
       setParts(data); refreshFavs(data); setLoading(false)
       return
     }
-    setFilters({}); setSort('default')
+    const initFilters = pickingSlot ? getPickFilters(pickingSlot, getBuild()) : {}
+    console.log('[Catalog] pickingSlot:', pickingSlot, 'initFilters:', initFilters)
+    setFilters(initFilters); setSort('default')
     setParts([]); setOffset(0); setHasMore(true)
-    smartLoad(category, initialPage > 0 ? initialSearch : '', 0, {}, 'default')
-  }, [category, favsMode])
+    smartLoad(category, '', 0, initFilters, 'default')
+  }, [category, favsMode, pickingSlot])
 
   useEffect(() => {
     if (favsMode) return
     const timer = setTimeout(() => {
       setParts([]); setOffset(0)
-      smartLoad(category, search, 0, filters, sort)
+      smartLoad(category, search, 0, mergeFilters(filters), sort)
       onStateChange(0, search)
     }, 380)
     return () => clearTimeout(timer)
@@ -130,18 +134,20 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
 
   useEffect(() => {
     if (favsMode) return
-    setParts([]); setOffset(0); smartLoad(category, search, 0, filters, sort)
+    setParts([]); setOffset(0); smartLoad(category, search, 0, mergeFilters(filters), sort)
   }, [filters])
 
   useEffect(() => {
     if (favsMode) return
-    setParts(prev => applySort([...prev], sort))
-  }, [sort, applySort])
+    // Re-fetch with merged filters when sort changes
+    setParts([]); setOffset(0)
+    smartLoad(category, search, 0, mergeFilters(filters), sort)
+  }, [sort])
 
   function loadMore() {
     const next = offset + LIMIT
     setOffset(next)
-    smartLoad(category, search, next, filters, sort, true)
+    smartLoad(category, search, next, mergeFilters(filters), sort, true)
     onStateChange(next, search)
   }
 
@@ -168,6 +174,10 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
   }
 
   const catLabel = favsMode ? tr.favorites : tr[category]
+  const pickFilters = pickingSlot ? getPickFilters(pickingSlot, getBuild()) : {}
+  const filterReason = pickingSlot ? getFilterReason(pickingSlot, getBuild()) : null
+  // Always merge builder auto-filters with user filters (pickFilters take priority)
+  const mergeFilters = (userFilters: ActiveFilters) => ({ ...userFilters, ...pickFilters })
 
 
   const displayParts = favsMode
@@ -214,6 +224,13 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
           )}
         </div>
       </div>
+      {filterReason && (
+        <div className="pick-filter-notice">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {filterReason}
+          <button className="pick-filter-clear" onClick={() => setFilters({})}>clear</button>
+        </div>
+      )}
       {error && (
         <div className="error-msg">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>

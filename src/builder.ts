@@ -38,6 +38,12 @@ export function getCompatHints(build: Build): string[] {
 
 // ── Smart pre-filters based on current build ──────────────────────────────────
 // Returns API query params to pre-filter a slot based on other chosen parts
+// Extract base RAM type — "DDR5-6000" → "DDR5"
+function normalizeRamType(s: string): string {
+  const m = s.match(/DDR\d/i)
+  return m ? m[0].toUpperCase() : s.trim()
+}
+
 export function getPickFilters(slot: BuildSlot, build: Build): Record<string, string | number> {
   const filters: Record<string, string | number> = {}
   const cpu = build.cpu?.part
@@ -45,34 +51,36 @@ export function getPickFilters(slot: BuildSlot, build: Build): Record<string, st
 
   switch (slot) {
     case 'motherboard':
-      // Filter by CPU socket
-      if (cpu?.socket) filters.socket = cpu.socket
+      if (cpu?.socket) {
+        filters.socket = String(cpu.socket).trim()
+        console.log('[Builder] Motherboard filter: socket =', filters.socket)
+      }
       break
 
     case 'cpu':
-      // Filter by motherboard socket
-      if (mb?.socket) filters.socket = mb.socket
+      if (mb?.socket) {
+        filters.socket = String(mb.socket).trim()
+        console.log('[Builder] CPU filter: socket =', filters.socket)
+      }
       break
 
     case 'ram':
-      // Filter by motherboard RAM type
       if (mb?.ram_type) {
-        const rt = (mb.ram_type as string).toUpperCase()
-        // ram_type field in RAM table is e.g. "DDR5", "DDR4"
-        filters.ram_type = rt.includes('DDR5') ? 'DDR5' : rt.includes('DDR4') ? 'DDR4' : rt
+        filters.ram_type = normalizeRamType(String(mb.ram_type))
+        console.log('[Builder] RAM filter: ram_type =', filters.ram_type)
+      } else if (cpu) {
+        // Fallback: guess from CPU generation
+        // Alder/Raptor Lake → DDR4/DDR5, Zen4 → DDR5
+        const arch = String(cpu.microarchitecture ?? '').toLowerCase()
+        if (arch.includes('zen 4') || arch.includes('zen4') || arch.includes('raptor')) {
+          // no safe assumption — don't filter
+        }
       }
       break
 
     case 'gpu':
-      // No hard filter — GPUs are universal (PCIe)
-      break
-
     case 'psu':
-      // No hard filter — wattage guidance only (shown as hint)
-      break
-
     case 'storage':
-      // No hard filter — show all
       break
   }
 

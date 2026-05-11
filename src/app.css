@@ -1319,3 +1319,17 @@ img { max-width: 100%; display: block; }
 .detail-action-btn.build-action:hover { color: var(--accent); background: rgba(255,107,53,.1); }
 .detail-action-btn.build-action.added { color: var(--accent); background: rgba(255,107,53,.1); }
 .detail-action-btn.build-action.added:hover { background: rgba(255,107,53,.06); color: var(--text2); }
+
+/* ── Pick filter notice ──────────────────────────────────────────────────────── */
+.pick-filter-notice {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 12px; border-radius: 8px; margin-bottom: 8px;
+  background: rgba(76,175,130,.07); color: var(--green);
+  font-family: 'Space Mono', monospace; font-size: .72rem;
+}
+.pick-filter-notice svg { flex-shrink: 0; }
+.pick-filter-clear {
+  margin-left: auto; font-family: 'Space Mono', monospace; font-size: .68rem;
+  color: var(--text3); transition: color .15s;
+}
+.pick-filter-clear:hover { color: var(--green); }
