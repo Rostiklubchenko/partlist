@@ -201,23 +201,13 @@ export default function App() {
             initialSearch={nav.catalogSearch}
             onStateChange={saveCatalogState}
             tr={tr}
-            pickingSlot={nav.pickingSlot}
-            onPicked={() => {
-              setNav(n => { const next = { ...n, view: 'builder' as View, pickingSlot: undefined }; const hash = encodeURIComponent(JSON.stringify(next)); window.history.pushState(next, '', '#' + hash); return next })
-            }}
+
           />
         )}
         {nav.view === 'builder' && (
           <Builder
             tr={tr}
-            onSelectSlot={(cat) => {
-              setNav(n => {
-                const next = { ...n, view: 'catalog' as View, category: cat as Category, pickingSlot: cat as Category, catalogPage: 0, catalogSearch: '' }
-                const hash = encodeURIComponent(JSON.stringify(next))
-                window.history.pushState(next, '', '#' + hash)
-                return next
-              })
-            }}
+            onSelectSlot={(cat) => goToCategory(cat as Category)}
           />
         )}
         {nav.view === 'favorites' && (

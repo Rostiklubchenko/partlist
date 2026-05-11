@@ -10,6 +10,7 @@ import {
 } from '../api'
 import { cacheGet, cacheSet, cacheInvalidate } from '../cache'
 import { toggleFav, isFav } from '../favorites'
+import { setBuildPart, getBuild } from '../builder'
 import { trackRozetkaData } from '../popularity'
 
 interface Props {
@@ -29,11 +30,12 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
   const [hot, setHot]           = useState<ShopsState>({ status: 'idle' })
   const [lightbox, setLightbox] = useState<{ photos: string[]; idx: number } | null>(null)
   const [liked, setLiked] = useState(() => isFav(part.opendb_id))
+  const [inBuild, setInBuild] = useState(() => Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id))
   const [tab, setTab] = useState<'shops' | 'specs'>('shops')
   const partNumbers = getPartNumbers(part)
   const cacheId = part.opendb_id
 
-  useEffect(() => { handleRozetka(); setLiked(isFav(part.opendb_id)) }, [part.opendb_id])
+  useEffect(() => { handleRozetka(); setLiked(isFav(part.opendb_id)); setInBuild(Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id)) }, [part.opendb_id])
 
   useEffect(() => {
     if (!lightbox) return
@@ -147,14 +149,24 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
             </div>
           )}
 
-          <button
-            className={"detail-fav-btn" + (liked ? " liked" : "")}
-            onClick={() => { const now = toggleFav(part, category); setLiked(now) }}
-            title={liked ? tr.removeFromFavs : tr.addToFavs}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            {liked ? tr.removeFromFavs : tr.addToFavs}
-          </button>
+          <div className="detail-action-row">
+            <button
+              className={"detail-action-btn fav-action" + (liked ? " liked" : "")}
+              onClick={() => { const now = toggleFav(part, category); setLiked(now) }}
+              title={liked ? tr.removeFromFavs : tr.addToFavs}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              {liked ? 'Збережено' : tr.addToFavs}
+            </button>
+            <button
+              className={"detail-action-btn build-action" + (inBuild ? " added" : "")}
+              onClick={() => { setBuildPart(category, part); setInBuild(true) }}
+              title={inBuild ? "In PC Build" : "Add to PC Build"}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+              {inBuild ? 'В збірці' : 'До збірки'}
+            </button>
+          </div>
 
           {/* Price block — prominent */}
           <div className="detail-price-block">

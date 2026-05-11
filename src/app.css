@@ -1298,3 +1298,24 @@ img { max-width: 100%; display: block; }
   font-family: 'Space Mono', monospace; font-size: .68rem;
   color: var(--green); opacity: .85;
 }
+
+/* ── Detail action row (fav + build) ─────────────────────────────────────────── */
+.detail-action-row {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.detail-action-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 7px;
+  font-size: .78rem; font-weight: 500; white-space: nowrap;
+  background: rgba(255,255,255,.05); color: var(--text2);
+  transition: all .15s;
+}
+.detail-action-btn:hover { background: rgba(255,255,255,.09); color: var(--text); }
+
+.detail-action-btn.fav-action:hover { color: #e84d4d; background: rgba(232,77,77,.1); }
+.detail-action-btn.fav-action.liked { color: #e84d4d; background: rgba(232,77,77,.1); }
+.detail-action-btn.fav-action.liked:hover { background: rgba(232,77,77,.06); color: var(--text2); }
+
+.detail-action-btn.build-action:hover { color: var(--accent); background: rgba(255,107,53,.1); }
+.detail-action-btn.build-action.added { color: var(--accent); background: rgba(255,107,53,.1); }
+.detail-action-btn.build-action.added:hover { background: rgba(255,107,53,.06); color: var(--text2); }
