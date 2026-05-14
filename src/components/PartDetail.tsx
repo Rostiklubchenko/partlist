@@ -6,7 +6,7 @@ import {
   serpSearch, findRozetkaUrl, findShopsUrl,
   parseRozetka, parseShops,
   buildRozetkaQuery, buildShopsQuery, getPartNumbers,
-  extractRozetkaPrice,
+  extractRozetkaPrice, fetchParts,
 } from '../api'
 import { cacheGet, cacheSet, cacheInvalidate, cacheGetRozetka, cacheSetRozetka, cacheGetShops, cacheSetShops } from '../cache'
 import { toggleFav, isFav } from '../favorites'
@@ -15,6 +15,9 @@ import { trackRozetkaData } from '../popularity'
 
 interface Props {
   part: Part; category: Category; onBack: () => void; tr: Translations
+  onAddToCompare?: (part: Part, cat: Category) => void
+  onRemoveFromCompare?: (id: string) => void
+  compareIds?: string[]
 }
 
 type RozState = { status: 'idle'|'searching'|'parsing'|'done'|'error'; data?: RozetkaResult; error?: string; rozetkaUrl?: string; fromCache?: boolean }
@@ -25,17 +28,28 @@ function parsePrice(p: string): number {
   return isNaN(n) ? Infinity : n
 }
 
-export default function PartDetail({ part, category, onBack, tr }: Props) {
+export default function PartDetail({ part, category, onBack, tr, onAddToCompare, onRemoveFromCompare, compareIds = [] }: Props) {
+  const [freshPart, setFreshPart] = useState<Part>(part)
   const [roz, setRoz]           = useState<RozState>({ status: 'idle' })
   const [hot, setHot]           = useState<ShopsState>({ status: 'idle' })
   const [lightbox, setLightbox] = useState<{ photos: string[]; idx: number } | null>(null)
   const [liked, setLiked] = useState(() => isFav(part.opendb_id))
   const [inBuild, setInBuild] = useState(() => Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id))
+  const inCompare = compareIds.includes(part.opendb_id)
   const [tab, setTab] = useState<'shops' | 'specs'>('shops')
   const partNumbers = getPartNumbers(part)
   const cacheId = part.opendb_id
 
-  useEffect(() => { handleRozetka(); setLiked(isFav(part.opendb_id)); setInBuild(Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id)) }, [part.opendb_id])
+  useEffect(() => {
+    setFreshPart(part) // reset immediately with what we have
+    handleRozetka()
+    setLiked(isFav(part.opendb_id))
+    setInBuild(Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id))
+    // Refresh part data from API to get full fields (URL hash may lose numeric 0s)
+    fetchParts(part._category as Category ?? category, { opendb_id: part.opendb_id, limit: 1 })
+      .then(data => { if (data.length > 0) setFreshPart(data[0]) })
+      .catch(() => { /* silent, use cached part */ })
+  }, [part.opendb_id])
 
   useEffect(() => {
     if (!lightbox) return
@@ -145,7 +159,7 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
     ...(roz.data?.image ? [roz.data.image] : []),
   ].filter(Boolean)
 
-  const specs   = buildSpecList(part, category, tr)
+  const specs   = buildSpecList(freshPart, category, tr)
   const rozBusy = roz.status === 'searching' || roz.status === 'parsing'
   const hotBusy = hot.status === 'searching' || hot.status === 'parsing'
   const mainImg = roz.data?.image || null
@@ -204,6 +218,16 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
               {inBuild ? tr.inBuild : tr.addToBuild}
             </button>
+            {onAddToCompare && (
+              <button
+                className={"detail-action-btn compare-action" + (inCompare ? " added" : "")}
+                onClick={() => inCompare ? onRemoveFromCompare?.(part.opendb_id) : onAddToCompare(part, category)}
+                title={tr.compareAdd}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+                {inCompare ? tr.compare : tr.compareAdd}
+              </button>
+            )}
           </div>
 
           {/* Price blocks row */}
@@ -509,16 +533,71 @@ function ShopList({ data, tr }: { data: ShopsResult; tr: Translations }) {
   )
 }
 
+
+// ── Value formatter ───────────────────────────────────────────────────────────
+function formatValue(val: unknown): string {
+  if (val == null || val === '' || val === undefined) return ''
+  // Numeric 0 is valid (e.g. SATA: 0)
+  if (val === 0) return '0'
+  const s = String(val)
+
+  // Try to parse JSON arrays/objects
+  if (s.startsWith('[') || s.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(s)
+      // Array of objects (like M.2 slots)
+      if (Array.isArray(parsed)) {
+        // Deduplicate and format each item
+        const formatted = parsed.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            const parts: string[] = []
+            if (item.size) parts.push(item.size)
+            if (item.interface) parts.push(item.interface)
+            if (item.key && item.key !== 'M') parts.push(`key ${item.key}`)
+            return parts.join(' ')
+          }
+          return String(item)
+        })
+        // Deduplicate
+        const unique = [...new Set(formatted)]
+        if (unique.length === 1) return `${unique[0]} ×${parsed.length}`
+        return unique.map(u => {
+          const count = formatted.filter(f => f === u).length
+          return count > 1 ? `${u} ×${count}` : u
+        }).join(', ')
+      }
+      // Plain object
+      if (typeof parsed === 'object') {
+        return Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join(', ')
+      }
+    } catch { /* not JSON */ }
+  }
+
+  // Boolean-like
+  if (s === '1') return '✓'
+  if (s === '0') return '✗'
+
+  // String array ["DDR5","DDR4"]
+  if (s.startsWith('["')) {
+    try {
+      const arr = JSON.parse(s) as string[]
+      return arr.join(', ')
+    } catch { /* not JSON */ }
+  }
+
+  return s
+}
+
 function buildSpecList(part: Part, category: Category, tr: Translations): [string, string][] {
-  const r = (k: string, v: unknown) => v != null && v !== '' ? [k, String(v)] as [string, string] : null
+  const r = (k: string, v: unknown) => { const fv = formatValue(v); return fv ? [k, fv] as [string, string] : null }
   const yn = (v: number | undefined) => v === 1 ? tr.yes : v === 0 ? tr.no : undefined
   const rows = {
     cpu: [r(tr.socket,part.socket),r(tr.architecture,part.microarchitecture),r(tr.cores,part.total_cores),r(tr.threads,part.threads),r(tr.baseClock,part.base_clock_ghz&&`${part.base_clock_ghz} GHz`),r(tr.boostClock,part.boost_clock_ghz&&`${part.boost_clock_ghz} GHz`),r(tr.l3cache,part.l3_cache_mb&&`${part.l3_cache_mb} MB`),r(tr.tdp,part.tdp_w&&`${part.tdp_w} W`),r(tr.igpu,part.integrated_graphics),r(tr.memory,part.memory_types),r(tr.lithography,part.lithography)],
     gpu: [r(tr.chipset,part.chipset),r(tr.memory,part.memory_gb&&`${part.memory_gb} GB`),r(tr.memoryType,part.memory_type),r(tr.coreBase,part.core_base_clock_mhz&&`${part.core_base_clock_mhz} MHz`),r(tr.coreBoost,part.core_boost_clock_mhz&&`${part.core_boost_clock_mhz} MHz`),r(tr.busWidth,part.memory_bus_bit&&`${part.memory_bus_bit}-bit`),r(tr.tdp,part.tdp_w&&`${part.tdp_w} W`),r(tr.length,part.length_mm&&`${part.length_mm} mm`),r(tr.slotWidth,part.total_slot_width),r(tr.interface,part.interface)],
-    motherboard: [r(tr.socket,part.socket),r(tr.chipset,part.chipset),r(tr.formFactor,part.form_factor),r(tr.ramType,part.ram_type),r(tr.ramSlots,part.ram_slots),r(tr.maxRam,part.max_memory_gb&&`${part.max_memory_gb} GB`),r(tr.sata,part.sata_6gbs),r(tr.m2,part.m2_slots),r(tr.wifi,yn(part.wifi as number)),r(tr.bluetooth,yn(part.bluetooth as number))],
-    ram: [r(tr.ramType,part.ram_type),r(tr.formFactor,part.form_factor),r(tr.capacity,part.total_capacity_gb&&`${part.total_capacity_gb} GB`),r(tr.modules,part.module_count),r(tr.speed,part.speed_mhz&&`${part.speed_mhz} MHz`),r(tr.casLatency,part.cas_latency&&`CL${part.cas_latency}`),r(tr.voltage,part.voltage_v&&`${part.voltage_v} V`),r(tr.rgb,yn(part.rgb as number)),r(tr.profiles,part.profile_support)],
-    psu: [r(tr.wattage,part.wattage&&`${part.wattage} W`),r(tr.formFactor,part.form_factor),r(tr.efficiency,part.efficiency_rating),r(tr.modular,part.modular),r(tr.length,part.length_mm&&`${part.length_mm} mm`),r(tr.fanless,yn(part.fanless as number)),r(tr.atx24,part.conn_atx_24pin),r(tr.eps8,part.conn_eps_8pin),r(tr.pcie62,part.conn_pcie_6p2pin),r(tr.sataConn,part.conn_sata)],
-    storage: [r(tr.storageType,part.storage_type),r(tr.formFactor,part.form_factor),r(tr.interface,part.interface),r(tr.capacity,part.capacity_gb&&`${part.capacity_gb} GB`),r(tr.nvme,yn(part.nvme as number)),r(tr.readSpeed,part.read_speed_mbs&&`${part.read_speed_mbs} MB/s`),r(tr.writeSpeed,part.write_speed_mbs&&`${part.write_speed_mbs} MB/s`),r(tr.cache,part.cache_mb&&`${part.cache_mb} MB`),r(tr.rpm,part.rpm)],
+    motherboard: [r(tr.socket,part.socket),r(tr.chipset,part.chipset),r(tr.formFactor,part.form_factor),r(tr.ramType,part.ram_type),r(tr.ramSlots,part.ram_slots),r(tr.maxRam,part.max_memory_gb&&`${part.max_memory_gb} GB`),r(tr.sata,part.sata_6gbs),r(tr.m2,part.m2_slots),r(tr.wifi,part.wifi),r(tr.bluetooth,part.bluetooth)],
+    ram: [r(tr.ramType,part.ram_type),r(tr.formFactor,part.form_factor),r(tr.capacity,part.total_capacity_gb&&`${part.total_capacity_gb} GB`),r(tr.modules,part.module_count),r(tr.speed,part.speed_mhz&&`${part.speed_mhz} MHz`),r(tr.casLatency,part.cas_latency&&`CL${part.cas_latency}`),r(tr.voltage,part.voltage_v&&`${part.voltage_v} V`),r(tr.rgb,part.rgb),r(tr.profiles,part.profile_support)],
+    psu: [r(tr.wattage,part.wattage&&`${part.wattage} W`),r(tr.formFactor,part.form_factor),r(tr.efficiency,part.efficiency_rating),r(tr.modular,part.modular),r(tr.length,part.length_mm&&`${part.length_mm} mm`),r(tr.fanless,part.fanless),r(tr.atx24,part.conn_atx_24pin),r(tr.eps8,part.conn_eps_8pin),r(tr.pcie62,part.conn_pcie_6p2pin),r(tr.sataConn,part.conn_sata)],
+    storage: [r(tr.storageType,part.storage_type),r(tr.formFactor,part.form_factor),r(tr.interface,part.interface),r(tr.capacity,part.capacity_gb&&`${part.capacity_gb} GB`),r(tr.nvme,part.nvme),r(tr.readSpeed,part.read_speed_mbs&&`${part.read_speed_mbs} MB/s`),r(tr.writeSpeed,part.write_speed_mbs&&`${part.write_speed_mbs} MB/s`),r(tr.cache,part.cache_mb&&`${part.cache_mb} MB`),r(tr.rpm,part.rpm)],
   }
   return (rows[category]??[]).filter(Boolean) as [string,string][]
 }

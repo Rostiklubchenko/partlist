@@ -35,12 +35,16 @@ interface Props {
   favParts?: { part: Part; category: Category }[]
   // builder slot being picked — activates auto-filters
   pickingSlot?: Category
+  // compare
+  onAddToCompare?: (part: Part, cat: Category) => void
+  onRemoveFromCompare?: (id: string) => void
+  compareIds?: string[]
 }
 
 const LIMIT = 40
 const API_BASE = '/api/buildcores'
 
-export default function Catalog({ category, onSelectPart, initialPage, initialSearch, onStateChange, tr, favsMode, favParts, pickingSlot }: Props) {
+export default function Catalog({ category, onSelectPart, initialPage, initialSearch, onStateChange, tr, favsMode, favParts, pickingSlot, onAddToCompare, onRemoveFromCompare, compareIds = [] }: Props) {
   const [parts, setParts]           = useState<Part[]>([])
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
@@ -256,6 +260,17 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
               <div className="part-card-name">{part.name || '—'}</div>
               <div className="part-card-mfr">{part.manufacturer}</div>
               <div className="part-card-sub">{partSubtitle(part, category)}</div>
+              {!favsMode && onAddToCompare && (
+                <button
+                  className={`card-compare-btn${compareIds.includes(part.opendb_id) ? " added" : ""}`}
+                  onClick={e => { e.stopPropagation(); compareIds.includes(part.opendb_id) ? onRemoveFromCompare?.(part.opendb_id) : onAddToCompare(part, category) }}
+                >
+                  {compareIds.includes(part.opendb_id)
+                    ? <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg> {tr.compareAdd}</>
+                    : <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg> {tr.compare}</>
+                  }
+                </button>
+              )}
               {sort === 'popular' && score > 0 && (
                 <div className="pop-score-bar"><div className="pop-score-fill" style={{ width: `${Math.min(100, score)}%` }} /></div>
               )}

@@ -4,6 +4,7 @@ import PartDetail from './components/PartDetail'
 import { CategoryIcon, IconArrow } from './components/Icons'
 import { getAllFavs, favsCount, type FavEntry } from './favorites'
 import { buildCount } from './builder'
+import Compare from './components/Compare'
 import Builder from './components/Builder'
 import type { Part, Category } from './types'
 import type { Lang, Translations } from './i18n'
@@ -12,7 +13,7 @@ import './app.css'
 
 const CATEGORIES: Category[] = ['cpu', 'gpu', 'motherboard', 'ram', 'psu', 'storage']
 
-type View = 'landing' | 'catalog' | 'detail' | 'favorites' | 'builder'
+type View = 'landing' | 'catalog' | 'detail' | 'favorites' | 'builder' | 'compare'
 
 interface NavState {
   view: View
@@ -31,6 +32,7 @@ export default function App() {
     (localStorage.getItem('lang') as Lang) ?? 'uk'
   )
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [compareList, setCompareList] = useState<{part: Part; category: Category}[]>([])
   const [favCount, setFavCount] = useState(() => favsCount())
   const [buildSlots, setBuildSlots] = useState(() => buildCount())
   // ── History-aware navigation ─────────────────────────────────────────────
@@ -103,6 +105,20 @@ export default function App() {
     })
   }
   function refreshFavCount() { setFavCount(favsCount()) }
+  function goToCompare() {
+    setNav(n => { const next = { ...n, view: 'compare' as View }; const hash = encodeURIComponent(JSON.stringify(next)); window.history.pushState(next, '', '#' + hash); return next })
+  }
+  function addToCompare(part: Part, category: Category) {
+    setCompareList(prev => {
+      if (prev.find(e => e.part.opendb_id === part.opendb_id)) return prev
+      // Allow mixing categories — Compare page shows tabs per category
+      if (prev.length >= 8) return prev // max 8 total
+      return [...prev, { part, category }]
+    })
+  }
+  function removeFromCompare(id: string) {
+    setCompareList(prev => prev.filter(e => e.part.opendb_id !== id))
+  }
   function goToBuilder() {
     setNav(n => { const next = { ...n, view: 'builder' as View, pickingSlot: undefined }; const hash = encodeURIComponent(JSON.stringify(next)); window.history.pushState(next, '', '#' + hash); return next })
   }
@@ -159,6 +175,16 @@ export default function App() {
         )}
 
         <div className="nav-controls">
+          {compareList.length > 0 && (
+            <button
+              className={`ctrl-btn nav-compare-btn${nav.view === 'compare' ? ' active' : ''}`}
+              onClick={goToCompare}
+              title={tr.compare}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+              <span className="nav-compare-count">{compareList.length}</span>
+            </button>
+          )}
           <button
             className={`ctrl-btn nav-builder-btn${nav.view === 'builder' ? ' active' : ''}`}
             onClick={goToBuilder}
@@ -190,7 +216,7 @@ export default function App() {
 
       <main className="app-main">
         {nav.view === 'landing' && (
-          <Landing tr={tr} categories={CATEGORIES} onSelect={goToCategory} />
+          <Landing tr={tr} categories={CATEGORIES} onSelect={goToCategory} onBuilder={goToBuilder} />
         )}
         {nav.view === 'catalog' && (
           <Catalog
@@ -202,6 +228,9 @@ export default function App() {
             onStateChange={saveCatalogState}
             tr={tr}
             pickingSlot={nav.pickingSlot}
+            onAddToCompare={addToCompare}
+            onRemoveFromCompare={removeFromCompare}
+            compareIds={compareList.map(e => e.part.opendb_id)}
           />
         )}
         {nav.view === 'builder' && (
@@ -225,6 +254,17 @@ export default function App() {
             }}
           />
         )}
+        {nav.view === 'compare' && (
+          <Compare
+            entries={compareList}
+            onRemove={removeFromCompare}
+            onClear={() => setCompareList([])}
+            onViewPart={(part, cat) => {
+              setNav(n => { const next = { ...n, view: 'detail' as View, category: cat, part }; const hash = encodeURIComponent(JSON.stringify(next)); window.history.pushState(next, '', '#' + hash); return next })
+            }}
+            tr={tr}
+          />
+        )}
         {nav.view === 'favorites' && (
           <Catalog
             category={nav.category}
@@ -244,6 +284,9 @@ export default function App() {
             category={nav.category}
             onBack={goBackToCatalog}
             tr={tr}
+            onAddToCompare={addToCompare}
+            onRemoveFromCompare={removeFromCompare}
+            compareIds={compareList.map(e => e.part.opendb_id)}
           />
         )}
       </main>
@@ -278,10 +321,11 @@ export default function App() {
   )
 }
 
-function Landing({ tr, categories, onSelect }: {
+function Landing({ tr, categories, onSelect, onBuilder }: {
   tr: Translations
   categories: Category[]
   onSelect: (c: Category) => void
+  onBuilder: () => void
 }) {
   return (
     <div className="landing">
@@ -304,6 +348,13 @@ function Landing({ tr, categories, onSelect }: {
         </div>
       </div>
 
+      <div className="landing-extras">
+        <button className="landing-builder-btn" onClick={onBuilder}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          {tr.builderLanding}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
       <div className="landing-grid">
         {categories.map((id, i) => (
           <button

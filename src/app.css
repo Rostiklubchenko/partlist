@@ -1412,3 +1412,187 @@ img { max-width: 100%; display: block; }
   font-family: 'Space Mono', monospace; font-size: 1.4rem;
   font-weight: 700; color: var(--green); flex-shrink: 0;
 }
+
+/* ── Landing builder button ──────────────────────────────────────────────────── */
+.landing-extras {
+  position: relative; z-index: 1;
+  display: flex; justify-content: center; gap: 10px;
+  margin-bottom: 20px;
+  animation: fadeUp .5s .28s ease both;
+}
+.landing-builder-btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 10px 22px; border-radius: 10px;
+  font-size: .92rem; font-weight: 600;
+  background: rgba(255,107,53,.1); color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(255,107,53,.25);
+  transition: all .2s;
+}
+.landing-builder-btn:hover {
+  background: rgba(255,107,53,.18);
+  box-shadow: 0 0 0 1px rgba(255,107,53,.5), 0 4px 20px rgba(255,107,53,.15);
+  transform: translateY(-1px);
+}
+
+/* ── Compare button on card ──────────────────────────────────────────────────── */
+.compare-add-btn {
+  position: absolute; top: 10px; right: 62px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text3); background: none;
+  transition: all .15s; z-index: 1;
+}
+.compare-add-btn:hover { color: var(--accent); background: rgba(255,107,53,.12); transform: scale(1.15); }
+.compare-add-btn.added { color: var(--accent); }
+
+/* ── Nav compare button ──────────────────────────────────────────────────────── */
+.nav-compare-btn { position: relative; }
+.nav-compare-btn:hover { color: var(--accent) !important; background: rgba(255,107,53,.1) !important; }
+.nav-compare-btn.active { color: var(--accent) !important; background: rgba(255,107,53,.12) !important; }
+.nav-compare-count {
+  position: absolute; top: -5px; right: -5px;
+  background: var(--accent); color: #fff;
+  font-family: 'Space Mono', monospace; font-size: .55rem; font-weight: 700;
+  min-width: 15px; height: 15px; border-radius: 8px; padding: 0 3px;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+
+/* ── Compare page ────────────────────────────────────────────────────────────── */
+.compare { animation: fadeIn .2s ease; }
+.compare-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 80px 20px; color: var(--text3); text-align: center;
+}
+.compare-empty svg { opacity: .25; }
+.compare-empty p { font-size: .9rem; font-family: 'Space Mono', monospace; }
+
+.compare-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+}
+.compare-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 1.3rem; font-weight: 700; color: var(--text);
+}
+.compare-controls { display: flex; gap: 8px; }
+
+.compare-diff-btn {
+  font-family: 'Space Mono', monospace; font-size: .72rem;
+  padding: 6px 14px; border-radius: 6px;
+  background: rgba(255,255,255,.05); color: var(--text2);
+  transition: all .15s;
+}
+.compare-diff-btn:hover { background: rgba(255,255,255,.09); color: var(--text); }
+.compare-diff-btn.active { background: rgba(255,107,53,.12); color: var(--accent); }
+
+.compare-clear-btn {
+  font-family: 'Space Mono', monospace; font-size: .72rem;
+  padding: 6px 14px; border-radius: 6px;
+  background: rgba(255,255,255,.05); color: var(--text3);
+  transition: all .15s;
+}
+.compare-clear-btn:hover { background: rgba(232,77,77,.08); color: var(--roz); }
+
+.compare-table-wrap {
+  overflow-x: auto; border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.05);
+}
+.compare-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--bg2);
+}
+.compare-th-label {
+  width: 160px; min-width: 130px; padding: 14px 16px;
+  text-align: left; font-family: 'Space Mono', monospace;
+  font-size: .65rem; color: var(--text3); letter-spacing: .08em;
+  background: var(--bg3); position: sticky; left: 0; z-index: 2;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.compare-th-part {
+  min-width: 200px; padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  border-left: 1px solid rgba(255,255,255,.04);
+  vertical-align: top;
+}
+.compare-part-head { display: flex; flex-direction: column; gap: 3px; position: relative; padding-right: 24px; }
+.compare-part-name {
+  font-size: .88rem; font-weight: 600; color: var(--text);
+  text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0; transition: color .15s; line-height: 1.3;
+}
+.compare-part-name:hover { color: var(--accent); text-decoration: underline; }
+.compare-part-mfr { font-size: .72rem; color: var(--text3); }
+.compare-remove-btn {
+  position: absolute; top: 0; right: 0;
+  width: 20px; height: 20px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text3); background: none; transition: all .15s;
+}
+.compare-remove-btn:hover { color: var(--roz); background: rgba(232,77,77,.08); }
+
+.compare-td-label {
+  padding: 8px 16px; font-family: 'Space Mono', monospace; font-size: .72rem;
+  color: var(--text3); background: var(--bg3); position: sticky; left: 0; z-index: 1;
+  border-bottom: 1px solid rgba(255,255,255,.04); white-space: nowrap;
+}
+.compare-td-val {
+  padding: 8px 16px; font-size: .83rem; color: var(--text);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  border-left: 1px solid rgba(255,255,255,.04);
+}
+.compare-row-diff .compare-td-val.diff {
+  background: rgba(255,107,53,.05); color: var(--accent);
+}
+.compare-table tr:last-child td { border-bottom: none; }
+.compare-table tr:hover td { background-color: rgba(255,255,255,.02); }
+.compare-table tr:hover .compare-td-label,
+.compare-table tr:hover .compare-th-label { background: var(--bg3); }
+
+/* ── Card compare button — visible inline ────────────────────────────────────── */
+.card-compare-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 6px; align-self: flex-start;
+  font-family: 'Space Mono', monospace; font-size: .62rem;
+  padding: 3px 8px; border-radius: 4px;
+  color: var(--text3); background: rgba(255,255,255,.04);
+  transition: all .15s;
+}
+.card-compare-btn:hover { color: var(--accent); background: rgba(255,107,53,.1); }
+.card-compare-btn.added { color: var(--accent); background: rgba(255,107,53,.08); }
+
+/* ── Compare category tabs ───────────────────────────────────────────────────── */
+.compare-tabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.compare-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  font-size: .8rem; font-weight: 500;
+  color: var(--text2); background: rgba(255,255,255,.05);
+  transition: all .15s;
+}
+.compare-tab:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.compare-tab.active { color: var(--accent); background: rgba(255,107,53,.1); }
+.compare-tab svg { color: var(--accent); }
+.compare-tab-count {
+  font-family: 'Space Mono', monospace; font-size: .62rem;
+  background: rgba(255,255,255,.08); color: var(--text3);
+  padding: 1px 6px; border-radius: 8px;
+}
+.compare-tab.active .compare-tab-count { background: rgba(255,107,53,.15); color: var(--accent); }
+
+.compare-hint {
+  font-family: 'Space Mono', monospace; font-size: .7rem;
+  color: var(--text3);
+}
+.compare-mixed-note {
+  margin-top: 14px;
+  font-family: 'Space Mono', monospace; font-size: .7rem;
+  color: var(--text3); text-align: center;
+}
+
+/* ── Detail compare action button ────────────────────────────────────────────── */
+.detail-action-btn.compare-action:hover { color: var(--accent); background: rgba(255,107,53,.1); }
+.detail-action-btn.compare-action.added { color: var(--accent); background: rgba(255,107,53,.1); }
+.detail-action-btn.compare-action.added:hover { background: rgba(255,107,53,.06); color: var(--text2); }

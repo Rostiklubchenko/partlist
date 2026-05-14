@@ -53,6 +53,8 @@ export const t = {
     sortPopular: 'Популярні', sortDefault: 'Сортування',
     filters: 'Фільтри', filtersAny: '— Будь-який —', filtersClear: 'Скинути',
     pickFilterClear: 'скинути',
+    builderLanding: 'Зібрати ПК',
+    compare: 'Порівняти', compareAdd: 'Додати до порівняння', compareRemove: 'Прибрати', compareClear: 'Очистити', compareEmpty: 'Додайте товари для порівняння', compareTitle: 'Порівняння', compareDiff: 'Тільки відмінності', compareOneCat: 'Можна порівнювати до 4 товарів однієї категорії',
     fromCheap: 'від дешевих', fromExpensive: 'від дорогих',
   },
   en: {
@@ -103,6 +105,8 @@ export const t = {
     sortPopular: 'Popular', sortDefault: 'Sort',
     filters: 'Filters', filtersAny: '— Any —', filtersClear: 'Clear all',
     pickFilterClear: 'clear',
+    builderLanding: 'Build PC',
+    compare: 'Compare', compareAdd: 'Add to compare', compareRemove: 'Remove', compareClear: 'Clear', compareEmpty: 'Add parts to compare', compareTitle: 'Compare', compareDiff: 'Differences only', compareOneCat: 'Compare up to 4 parts of the same category',
     fromCheap: 'cheapest first', fromExpensive: 'most expensive first',
   },
 } as const
