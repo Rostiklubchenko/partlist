@@ -215,6 +215,14 @@ export default function App() {
                 return next
               })
             }}
+            onViewPart={(part, cat) => {
+              setNav(n => {
+                const next = { ...n, view: 'detail' as View, category: cat, part }
+                const hash = encodeURIComponent(JSON.stringify(next))
+                window.history.pushState(next, '', '#' + hash)
+                return next
+              })
+            }}
           />
         )}
         {nav.view === 'favorites' && (

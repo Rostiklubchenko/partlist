@@ -1333,3 +1333,82 @@ img { max-width: 100%; display: block; }
   color: var(--text3); transition: color .15s;
 }
 .pick-filter-clear:hover { color: var(--green); }
+
+/* ── Price blocks row ────────────────────────────────────────────────────────── */
+.detail-prices-row {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  margin-top: 4px;
+}
+.detail-price-block {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 16px; background: var(--bg2); border: none;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.05), 0 2px 16px rgba(0,0,0,.2);
+}
+.roz-price-block { flex: 1.4; min-width: 180px; }
+.shops-price-block { flex: 1; min-width: 140px; }
+
+.shops-price-label {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'Space Mono', monospace; font-size: .65rem;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--text3);
+}
+.shops-price-range {
+  display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+}
+.shops-price-min {
+  font-family: 'Space Mono', monospace; font-size: 1.15rem;
+  font-weight: 700; color: var(--green);
+}
+.shops-price-sep { color: var(--text3); font-size: .9rem; }
+.shops-price-max {
+  font-family: 'Space Mono', monospace; font-size: .9rem;
+  color: var(--text2);
+}
+.shops-price-count {
+  font-size: .72rem; color: var(--text3);
+  font-family: 'Space Mono', monospace;
+}
+
+/* ── Builder part name as link ───────────────────────────────────────────────── */
+.builder-slot-name-btn {
+  font-size: .88rem; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: left; transition: color .15s;
+  background: none; border: none; cursor: pointer; padding: 0;
+  max-width: 100%;
+}
+.builder-slot-name-btn:hover { color: var(--accent); text-decoration: underline; }
+
+/* ── Builder slot name as link ───────────────────────────────────────────────── */
+.builder-slot-name-btn {
+  font-size: .88rem; font-weight: 500; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-align: left; background: none; border: none; cursor: pointer;
+  padding: 0; max-width: 100%; transition: color .15s; display: block;
+}
+.builder-slot-name-btn:hover { color: var(--accent); text-decoration: underline; }
+
+/* ── Builder footer total redesign ──────────────────────────────────────────── */
+.builder-footer {
+  padding: 14px 18px; border-radius: 10px;
+  background: rgba(255,255,255,.03);
+}
+.builder-total {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.builder-total-left {
+  display: flex; flex-direction: column; gap: 1px;
+}
+.builder-total-label {
+  font-family: 'Space Mono', monospace; font-size: .72rem;
+  color: var(--text2); letter-spacing: .05em;
+}
+.builder-total-note {
+  font-size: .68rem; color: var(--text3);
+  font-family: 'Space Mono', monospace;
+}
+.builder-total-price {
+  font-family: 'Space Mono', monospace; font-size: 1.4rem;
+  font-weight: 700; color: var(--green); flex-shrink: 0;
+}

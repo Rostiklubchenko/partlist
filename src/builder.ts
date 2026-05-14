@@ -105,3 +105,15 @@ export function getFilterReason(slot: BuildSlot, build: Build): string | null {
   }
   return null
 }
+
+// Get cached Rozetka price for a part
+export function getCachedPrice(opendb_id: string): string | null {
+  try {
+    const raw = localStorage.getItem(`partlist_price_${opendb_id}`)
+    if (!raw) return null
+    const entry = JSON.parse(raw)
+    // 6h TTL check
+    if (Date.now() - entry.ts > 6 * 60 * 60 * 1000) return null
+    return entry.data?.price ?? null
+  } catch { return null }
+}

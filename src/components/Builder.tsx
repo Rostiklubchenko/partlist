@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getBuild, setBuildPart, removeBuildPart, clearBuild, getCompatHints, SLOTS, type Build, type BuildSlot } from '../builder'
+import { getBuild, setBuildPart, removeBuildPart, clearBuild, getCompatHints, SLOTS, getCachedPrice, type Build, type BuildSlot } from '../builder'
 import { cacheGet } from '../cache'
 import { fetchParts } from '../api'
 import type { Part, Category } from '../types'
@@ -14,12 +14,13 @@ function getSlotLabel(slot: BuildSlot, tr: Translations): string {
   return labels[slot]
 }
 
-interface Props { tr: Translations; onSelectSlot: (cat: Category) => void }
+interface Props { tr: Translations; onSelectSlot: (cat: Category) => void; onViewPart: (part: Part, cat: Category) => void }
 
-export default function Builder({ tr, onSelectSlot }: Props) {
+export default function Builder({ tr, onSelectSlot, onViewPart }: Props) {
   const [build, setBuild] = useState<Build>({})
   const [hints, setHints]   = useState<string[]>([])
   const [cleared, setCleared] = useState(false)
+  const [prices, setPrices] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const sync = () => { const b = getBuild(); setBuild(b); setHints(getCompatHints(b)) }
@@ -28,16 +29,56 @@ export default function Builder({ tr, onSelectSlot }: Props) {
     return () => window.removeEventListener('build-updated', sync)
   }, [])
 
+  // Sync prices state from cache on mount and when build changes
+  useEffect(() => {
+    const loadPrices = () => {
+      const newPrices: Record<string, string> = {}
+      SLOTS.forEach(s => {
+        const e = build[s]
+        if (!e) return
+        const p = getCachedPrice(e.part.opendb_id) ?? e.cachedPrice
+        if (p) newPrices[e.part.opendb_id] = p
+      })
+      setPrices(newPrices)
+    }
+    loadPrices()
+
+    // Auto-fetch for parts that have URL cached but no price
+    const missingPrices = SLOTS.filter(s => {
+      const e = build[s]
+      return e && !getCachedPrice(e.part.opendb_id) && !e.cachedPrice
+    })
+    missingPrices.forEach(async (slot) => {
+      const entry = build[slot]
+      if (!entry) return
+      try {
+        const raw = localStorage.getItem(`partlist_url_rozetka_${entry.part.opendb_id}`)
+        if (!raw) return
+        const parsed = JSON.parse(raw)
+        if (!parsed?.data) return
+        const { parseRozetka } = await import('../api')
+        const data = await parseRozetka(parsed.data)
+        if (data.price) {
+          const { cacheSetRozetka } = await import('../cache')
+          cacheSetRozetka(entry.part.opendb_id, data as any)
+          setBuildPart(slot, entry.part, data.price)
+          // Update prices state immediately — triggers re-render
+          setPrices(prev => ({ ...prev, [entry.part.opendb_id]: data.price }))
+        }
+      } catch { /* silent */ }
+    })
+  }, [build])
+
   function handleRemove(slot: BuildSlot) { removeBuildPart(slot) }
   function handleClear() { clearBuild(); setCleared(true); setTimeout(() => setCleared(false), 1500) }
 
-  // Estimate total price from cache
+  // Calculate total from prices state (reactive, updates when prices load)
   const total = SLOTS.reduce((sum, slot) => {
     const entry = build[slot]
     if (!entry) return sum
-    const rawPrice: string | null = entry.cachedPrice ?? null
-    if (!rawPrice) return sum
-    const num = parseFloat(rawPrice.replace(/[^\d.]/g, ''))
+    const price = prices[entry.part.opendb_id] ?? null
+    if (!price) return sum
+    const num = parseFloat(price.replace(/[^\d.]/g, ''))
     return isNaN(num) ? sum : sum + num
   }, 0)
 
@@ -93,10 +134,11 @@ export default function Builder({ tr, onSelectSlot }: Props) {
                 <div className="builder-slot-label">{getSlotLabel(slot, tr)}</div>
                 {entry ? (
                   <>
-                    <div className="builder-slot-name">{entry.part.name}</div>
-                    {entry.cachedPrice && (
-                      <div className="builder-slot-price">{entry.cachedPrice}</div>
-                    )}
+                    <button
+                      className="builder-slot-name-btn"
+                      onClick={() => onViewPart(entry.part, entry.category)}
+                    >{entry.part.name}</button>
+                    {prices[entry.part.opendb_id] && <div className="builder-slot-price">{prices[entry.part.opendb_id]}</div>}
                   </>
                 ) : (
                   <div className="builder-slot-empty">{tr.builderNotSelected}</div>
@@ -124,15 +166,15 @@ export default function Builder({ tr, onSelectSlot }: Props) {
       {/* Total */}
       {filled > 0 && (
         <div className="builder-footer">
-          {total > 0 ? (
-            <div className="builder-total">
-              <span className="builder-total-label">~Total</span>
-              <span className="builder-total-price">{total.toLocaleString('uk-UA')} ₴</span>
-              <span className="builder-total-note">з кешованих цін Rozetka</span>
+          <div className="builder-total">
+            <div className="builder-total-left">
+              <span className="builder-total-label">{tr.builderTotal}</span>
+              <span className="builder-total-note">Rozetka</span>
             </div>
-          ) : (
-            <p className="builder-total-note">Відкрийте товари щоб побачити ціни</p>
-          )}
+            <span className="builder-total-price">
+              {total > 0 ? `${total.toLocaleString('uk-UA')} ₴` : '—'}
+            </span>
+          </div>
         </div>
       )}
     </div>

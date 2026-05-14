@@ -8,7 +8,7 @@ import {
   buildRozetkaQuery, buildShopsQuery, getPartNumbers,
   extractRozetkaPrice,
 } from '../api'
-import { cacheGet, cacheSet, cacheInvalidate } from '../cache'
+import { cacheGet, cacheSet, cacheInvalidate, cacheGetRozetka, cacheSetRozetka, cacheGetShops, cacheSetShops } from '../cache'
 import { toggleFav, isFav } from '../favorites'
 import { setBuildPart, getBuild } from '../builder'
 import { trackRozetkaData } from '../popularity'
@@ -50,13 +50,24 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
 
   async function handleRozetka(forceRefresh = false) {
     if (!forceRefresh) {
+      // Try full data cache first (6h TTL)
+      const cachedData = cacheGetRozetka(cacheId)
+      if (cachedData) {
+        setRoz({ status: 'done', data: cachedData, rozetkaUrl: cachedData.url, fromCache: true })
+        return
+      }
+      // Fall back to URL cache only
       const cached = cacheGet(cacheId, 'rozetka')
       if (cached) {
         setRoz({ status: 'parsing', rozetkaUrl: cached, fromCache: true })
         try {
           const data = await parseRozetka(cached)
-          setRoz({ status: 'done', data, rozetkaUrl: cached, fromCache: true })
-          return
+          if (!data.price) { /* keep going */ } else {
+            cacheSetRozetka(cacheId, data as any)
+            if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
+            setRoz({ status: 'done', data, rozetkaUrl: cached, fromCache: true })
+            return
+          }
         } catch { cacheInvalidate(cacheId, 'rozetka') }
       }
     }
@@ -71,22 +82,36 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
       setRoz({ status: 'parsing', rozetkaUrl: url })
       const data = await parseRozetka(url)
       if (!data.price && serpPrice) data.price = serpPrice.price
-      if (data.rating || data.reviews_count) {
-        trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
-      }
+      if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
+      // Cache full data
+      if (data.price) cacheSetRozetka(cacheId, data as any)
       setRoz({ status: 'done', data, rozetkaUrl: url })
     } catch (e) { setRoz({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
   }
 
   async function handleShops(forceRefresh = false) {
     if (!forceRefresh) {
+      // Try full shops data cache (4h TTL)
+      const cachedShops = cacheGetShops(cacheId)
+      if (cachedShops) {
+        const data: ShopsResult = {
+          url: cacheGet(cacheId, 'shops') ?? '',
+          photos: cachedShops.photos,
+          total_shops: cachedShops.shopCount,
+          shops: [{ shop_name: '', price: '', shop_url: '' }, ...cachedShops.shops.map(s => ({ shop_name: s.name, price: s.price, shop_url: s.url }))]
+        }
+        setHot({ status: 'done', data, fromCache: true }); return
+      }
       const cached = cacheGet(cacheId, 'shops')
       const isValid = (u: string) =>
         /hotline\.ua\/.*\/[^/]+-[^/]+\/?$/.test(u) && !/\/fs\/\d+|\/c\d+\/|processory\/?$|\/computer\/?$/.test(u)
       if (cached && isValid(cached)) {
         setHot({ status: 'parsing', fromCache: true })
-        try { const data = await parseShops(cached); setHot({ status: 'done', data, fromCache: true }); return }
-        catch { cacheInvalidate(cacheId, 'shops') }
+        try {
+          const data = await parseShops(cached)
+          _cacheShopsData(data)
+          setHot({ status: 'done', data, fromCache: true }); return
+        } catch { cacheInvalidate(cacheId, 'shops') }
       } else if (cached) { cacheInvalidate(cacheId, 'shops') }
     }
     setHot({ status: 'searching' })
@@ -98,8 +123,21 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
       cacheSet(cacheId, 'shops', url)
       setHot({ status: 'parsing' })
       const data = await parseShops(url)
+      _cacheShopsData(data)
       setHot({ status: 'done', data })
     } catch (e) { setHot({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
+  }
+
+  function _cacheShopsData(data: ShopsResult) {
+    const shops = data.shops.slice(1)
+    const prices = shops.map(s => parseFloat(s.price.replace(/[^\d.]/g, ''))).filter(n => !isNaN(n))
+    cacheSetShops(cacheId, {
+      minPrice: prices.length ? Math.min(...prices) : 0,
+      maxPrice: prices.length ? Math.max(...prices) : 0,
+      shopCount: shops.length,
+      shops: shops.map(s => ({ name: s.shop_name, price: s.price, url: s.shop_url })),
+      photos: data.photos ?? []
+    })
   }
 
   const allPhotos = [
@@ -168,27 +206,54 @@ export default function PartDetail({ part, category, onBack, tr }: Props) {
             </button>
           </div>
 
-          {/* Price block — prominent */}
-          <div className="detail-price-block">
-            {rozBusy && <div className="detail-price-skeleton" />}
-            {roz.status === 'done' && roz.data?.price && (
-              <div className="detail-price">{roz.data.price}</div>
-            )}
-            {roz.status === 'done' && roz.data?.rating && (
-              <div className="detail-rating-row">
-                <Stars rating={parseFloat(roz.data.rating)} />
-                <span className="roz-rating-val">{roz.data.rating}</span>
-                {roz.data.reviews_count && (
-                  <span className="roz-reviews">({roz.data.reviews_count} {tr.reviews})</span>
-                )}
-              </div>
-            )}
-            {roz.status === 'done' && roz.data && (
-              <a href={roz.data.url} target="_blank" rel="noreferrer" className="detail-buy-btn">
-                {tr.viewOnRozetka}
-                <IconArrow size={14} />
-              </a>
-            )}
+          {/* Price blocks row */}
+          <div className="detail-prices-row">
+            {/* Rozetka price */}
+            <div className="detail-price-block roz-price-block">
+              {rozBusy && <div className="detail-price-skeleton" />}
+              {roz.status === 'done' && roz.data?.price && (
+                <div className="detail-price">{roz.data.price}</div>
+              )}
+              {roz.status === 'done' && roz.data?.rating && (
+                <div className="detail-rating-row">
+                  <Stars rating={parseFloat(roz.data.rating)} />
+                  <span className="roz-rating-val">{roz.data.rating}</span>
+                  {roz.data.reviews_count && (
+                    <span className="roz-reviews">({roz.data.reviews_count} {tr.reviews})</span>
+                  )}
+                </div>
+              )}
+              {roz.status === 'done' && roz.data && (
+                <a href={roz.data.url} target="_blank" rel="noreferrer" className="detail-buy-btn">
+                  {tr.viewOnRozetka}
+                  <IconArrow size={14} />
+                </a>
+              )}
+            </div>
+
+            {/* Shops price range — shown after shops loaded */}
+            {hot.status === 'done' && hot.data && (() => {
+              const shops = hot.data.shops.slice(1).filter(s => s.price !== '—')
+              const prices = shops.map(s => parseFloat(s.price.replace(/[^\d.]/g, ''))).filter(n => !isNaN(n))
+              if (!prices.length) return null
+              const min = Math.min(...prices); const max = Math.max(...prices)
+              return (
+                <div className="detail-price-block shops-price-block">
+                  <div className="shops-price-label">
+                    <span className="source-dot dot-hot" style={{width:6,height:6}} />
+                    {tr.shops}
+                  </div>
+                  <div className="shops-price-range">
+                    <span className="shops-price-min">{min.toLocaleString('uk-UA')} ₴</span>
+                    {min !== max && <>
+                      <span className="shops-price-sep">—</span>
+                      <span className="shops-price-max">{max.toLocaleString('uk-UA')} ₴</span>
+                    </>}
+                  </div>
+                  <div className="shops-price-count">{shops.length} {tr.shopsLabel}</div>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Rozetka refresh controls — compact */}
