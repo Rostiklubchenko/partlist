@@ -84,13 +84,18 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
     try {
       let data: Part[] = []
       if (!q.trim() || Object.keys(activeFilters).length > 0 || (!isPartNumber(q) && tokenize(q).length === 0)) {
-        const params: Record<string, string | number> = { limit: LIMIT, offset: off, ...activeFilters }
+        const params: Record<string, string | number> = { limit: LIMIT, offset: off }
         if (q.trim() && !isPartNumber(q)) params.name = q.trim()
-        // Server-side sorting for enricher sorts (position, price, az)
         if (sortMode === 'price_asc') params.sort = 'price_asc'
         else if (sortMode === 'price_desc') params.sort = 'price_desc'
         else if (sortMode === 'az') params.sort = 'az'
-        // default and popular — server returns position order, client re-sorts popular
+        // Pass spec filters as JSON string
+        const specFilters: Record<string, string> = {}
+        for (const [k, v] of Object.entries(activeFilters)) {
+          if (k !== 'min_price' && k !== 'max_price') specFilters[k] = String(v)
+          else params[k] = v
+        }
+        if (Object.keys(specFilters).length > 0) params.spec_filters = JSON.stringify(specFilters)
         data = await fetchParts(cat, params)
         setSearchMode('name')
         setHasMore(data.length === LIMIT)

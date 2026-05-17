@@ -44,6 +44,16 @@ function normalizeRamType(s: string): string {
   return m ? m[0].toUpperCase() : s.trim()
 }
 
+// Get spec value from part's _specs (enricher data) or typed field
+function getSpec(part: Part, ...keys: string[]): string | undefined {
+  const specs = (part as any)._specs as Record<string, string> | undefined
+  for (const k of keys) {
+    const v = specs?.[k] ?? (part as any)[k]
+    if (v != null && String(v).trim()) return String(v).trim()
+  }
+  return undefined
+}
+
 export function getPickFilters(slot: BuildSlot, build: Build): Record<string, string | number> {
   const filters: Record<string, string | number> = {}
   const cpu = build.cpu?.part
@@ -51,29 +61,31 @@ export function getPickFilters(slot: BuildSlot, build: Build): Record<string, st
 
   switch (slot) {
     case 'motherboard':
-      if (cpu?.socket) {
-        filters.socket = String(cpu.socket).trim()
-        console.log('[Builder] Motherboard filter: socket =', filters.socket)
+      if (cpu) {
+        // "Сокет" key in CPU specs, value like "Socket AM4" or "LGA1700"
+        const socket = getSpec(cpu, 'Сокет', 'socket')
+        if (socket) { filters['Сокет'] = socket; console.log('[Builder] MB filter socket =', socket) }
       }
       break
 
     case 'cpu':
-      if (mb?.socket) {
-        filters.socket = String(mb.socket).trim()
-        console.log('[Builder] CPU filter: socket =', filters.socket)
+      if (mb) {
+        // Motherboard has "Сокет" key, value like "Socket AM4"
+        const socket = getSpec(mb, 'Сокет', 'socket')
+        if (socket) { filters['Сокет'] = socket; console.log('[Builder] CPU filter socket =', socket) }
       }
       break
 
     case 'ram':
-      if (mb?.ram_type) {
-        filters.ram_type = normalizeRamType(String(mb.ram_type))
-        console.log('[Builder] RAM filter: ram_type =', filters.ram_type)
-      } else if (cpu) {
-        // Fallback: guess from CPU generation
-        // Alder/Raptor Lake → DDR4/DDR5, Zen4 → DDR5
-        const arch = String(cpu.microarchitecture ?? '').toLowerCase()
-        if (arch.includes('zen 4') || arch.includes('zen4') || arch.includes('raptor')) {
-          // no safe assumption — don't filter
+      if (mb) {
+        // Motherboard has "Підтримка пам'яті" like "4 x DDR4 DIMM; ..."
+        // Extract DDR type from it
+        const support = getSpec(mb, "Підтримка пам'яті", "Підтримка пам\'яті", 'ram_type')
+        const norm = support ? normalizeRamType(support) : undefined
+        if (norm) {
+          // RAM uses "Тип пам'яті" key
+          filters["Тип пам\'яті"] = norm
+          console.log('[Builder] RAM filter type =', norm)
         }
       }
       break
@@ -93,15 +105,22 @@ export function getFilterReason(slot: BuildSlot, build: Build): string | null {
   const mb  = build.motherboard?.part
 
   switch (slot) {
-    case 'motherboard':
-      if (cpu?.socket) return `Filtered by CPU socket: ${cpu.socket}`
+    case 'motherboard': {
+      const socket = getSpec(cpu ?? {} as Part, 'Сокет', 'socket')
+      if (cpu && socket) return `Фільтр по сокету CPU: ${socket}`
       break
-    case 'cpu':
-      if (mb?.socket) return `Filtered by Motherboard socket: ${mb.socket}`
+    }
+    case 'cpu': {
+      const socket = getSpec(mb ?? {} as Part, 'Сокет', 'socket')
+      if (mb && socket) return `Фільтр по сокету материнської: ${socket}`
       break
-    case 'ram':
-      if (mb?.ram_type) return `Filtered by Motherboard RAM type: ${mb.ram_type}`
+    }
+    case 'ram': {
+      const support = getSpec(mb ?? {} as Part, "Підтримка пам'яті", "Підтримка пам\'яті", 'ram_type')
+      const norm = support ? normalizeRamType(support) : undefined
+      if (mb && norm) return `Фільтр по типу RAM: ${norm}`
       break
+    }
   }
   return null
 }
