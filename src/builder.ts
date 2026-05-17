@@ -62,29 +62,29 @@ export function getPickFilters(slot: BuildSlot, build: Build): Record<string, st
   switch (slot) {
     case 'motherboard':
       if (cpu) {
-        // "Сокет" key in CPU specs, value like "Socket AM4" or "LGA1700"
-        const socket = getSpec(cpu, 'Сокет', 'socket')
-        if (socket) { filters['Сокет'] = socket; console.log('[Builder] MB filter socket =', socket) }
+        // CPU has "Тип роз'єму": "Socket 1700"
+        // Motherboard has "Сокет": "Socket AM4"
+        const cpuSocket = getSpec(cpu, "Тип роз'єму", 'Сокет', 'socket')
+        if (cpuSocket) { filters['Сокет'] = cpuSocket; console.log('[Builder] MB filter socket =', cpuSocket) }
       }
       break
 
     case 'cpu':
       if (mb) {
-        // Motherboard has "Сокет" key, value like "Socket AM4"
-        const socket = getSpec(mb, 'Сокет', 'socket')
-        if (socket) { filters['Сокет'] = socket; console.log('[Builder] CPU filter socket =', socket) }
+        // Motherboard has "Сокет": "Socket AM4"
+        const mbSocket = getSpec(mb, 'Сокет', 'socket')
+        if (mbSocket) { filters["Тип роз'єму"] = mbSocket; console.log('[Builder] CPU filter socket =', mbSocket) }
       }
       break
 
     case 'ram':
       if (mb) {
-        // Motherboard has "Підтримка пам'яті" like "4 x DDR4 DIMM; ..."
-        // Extract DDR type from it
-        const support = getSpec(mb, "Підтримка пам'яті", "Підтримка пам\'яті", 'ram_type')
+        // MB has "Підтримка пам'яті": "4 x DDR4 DIMM; ..."
+        // RAM has "Тип пам'яті": "DDR5 SDRAM" or "DDR4"
+        const support = getSpec(mb, "Підтримка пам'яті", 'ram_type')
         const norm = support ? normalizeRamType(support) : undefined
         if (norm) {
-          // RAM uses "Тип пам'яті" key
-          filters["Тип пам\'яті"] = norm
+          filters["Тип пам'яті"] = norm
           console.log('[Builder] RAM filter type =', norm)
         }
       }
@@ -106,7 +106,7 @@ export function getFilterReason(slot: BuildSlot, build: Build): string | null {
 
   switch (slot) {
     case 'motherboard': {
-      const socket = getSpec(cpu ?? {} as Part, 'Сокет', 'socket')
+      const socket = getSpec(cpu ?? {} as Part, "Тип роз'єму", 'Сокет', 'socket')
       if (cpu && socket) return `Фільтр по сокету CPU: ${socket}`
       break
     }
@@ -116,7 +116,7 @@ export function getFilterReason(slot: BuildSlot, build: Build): string | null {
       break
     }
     case 'ram': {
-      const support = getSpec(mb ?? {} as Part, "Підтримка пам'яті", "Підтримка пам\'яті", 'ram_type')
+      const support = getSpec(mb ?? {} as Part, "Підтримка пам'яті", 'ram_type')
       const norm = support ? normalizeRamType(support) : undefined
       if (mb && norm) return `Фільтр по типу RAM: ${norm}`
       break
