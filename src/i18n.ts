@@ -56,6 +56,7 @@ export const t = {
     builderLanding: 'Зібрати ПК',
     compare: 'Порівняти', compareAdd: 'Додати до порівняння', compareRemove: 'Прибрати', compareClear: 'Очистити', compareEmpty: 'Додайте товари для порівняння', compareTitle: 'Порівняння', compareDiff: 'Тільки відмінності', compareOneCat: 'Можна порівнювати до 4 товарів однієї категорії',
     fromCheap: 'від дешевих', fromExpensive: 'від дорогих',
+    aiTitle: 'AI Помічник', aiPlaceholder: 'Опишіть для чого збираєте ПК, який бюджет...', aiSend: 'Надіслати', aiThinking: 'Думаю...', aiClear: 'Очистити', aiApply: 'Застосувати до збірки', aiError: 'Помилка запиту до Gemini', aiNoKey: 'Додайте VITE_GEMINI_KEY до .env файлу',
   },
   en: {
     tagline: 'UA price aggregator',
@@ -108,6 +109,7 @@ export const t = {
     builderLanding: 'Build PC',
     compare: 'Compare', compareAdd: 'Add to compare', compareRemove: 'Remove', compareClear: 'Clear', compareEmpty: 'Add parts to compare', compareTitle: 'Compare', compareDiff: 'Differences only', compareOneCat: 'Compare up to 4 parts of the same category',
     fromCheap: 'cheapest first', fromExpensive: 'most expensive first',
+    aiTitle: 'AI Assistant', aiPlaceholder: 'Describe your use case and budget...', aiSend: 'Send', aiThinking: 'Thinking...', aiClear: 'Clear', aiApply: 'Apply to build', aiError: 'Gemini API error', aiNoKey: 'Add VITE_GEMINI_KEY to your .env file',
   },
 } as const
 

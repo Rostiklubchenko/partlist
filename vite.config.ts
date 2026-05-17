@@ -25,6 +25,16 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/serpapi/, ''),
         changeOrigin: true,
       },
+      '/api/openrouter': {
+        target: 'https://openrouter.ai',
+        rewrite: (path) => path.replace(/^\/api\/openrouter/, ''),
+        changeOrigin: true,
+      },
+      '/api/catalog': {
+        target: 'http://localhost:8003',
+        rewrite: (path) => path.replace(/^\/api\/catalog/, '/api'),
+        changeOrigin: true,
+      },
     },
   },
 })

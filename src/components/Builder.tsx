@@ -1,3 +1,4 @@
+import AiBuilder, { type AiSuggestion } from './Aibuilder'
 import { useState, useEffect } from 'react'
 import { getBuild, setBuildPart, removeBuildPart, clearBuild, getCompatHints, SLOTS, getCachedPrice, type Build, type BuildSlot } from '../builder'
 import { cacheGet } from '../cache'
@@ -70,6 +71,23 @@ export default function Builder({ tr, onSelectSlot, onViewPart }: Props) {
   }, [build])
 
   function handleRemove(slot: BuildSlot) { removeBuildPart(slot) }
+
+  function handleAiSuggestions(suggestions: AiSuggestion[]) {
+    for (const s of suggestions) {
+      const part = {
+        opendb_id: s.opendb_id,
+        name: s.name,
+        manufacturer: s.name.split(' ')[0] ?? '',
+        _rozetka_url: s.url,
+        _image_url: s.image_url,
+        _price_uah: s.price_uah ?? undefined,
+      } as any
+      setBuildPart(s.category as BuildSlot, part, s.price_uah ? `${s.price_uah.toLocaleString('uk-UA')} ₴` : undefined)
+      if (s.price_uah) {
+        setPrices(prev => ({ ...prev, [s.opendb_id]: `${s.price_uah!.toLocaleString('uk-UA')} ₴` }))
+      }
+    }
+  }
   function handleClear() { clearBuild(); setCleared(true); setTimeout(() => setCleared(false), 1500) }
 
   // Calculate total from prices state (reactive, updates when prices load)
@@ -162,6 +180,13 @@ export default function Builder({ tr, onSelectSlot, onViewPart }: Props) {
           )
         })}
       </div>
+
+      {/* AI Builder */}
+      <AiBuilder
+        tr={tr}
+        onApplySuggestions={handleAiSuggestions}
+        currentBuild={build as any}
+      />
 
       {/* Total */}
       {filled > 0 && (
