@@ -20,7 +20,7 @@ function partSubtitle(part: Part, cat: Category): string {
   }
 }
 
-type SortMode = 'default' | 'popular'
+type SortMode = 'default' | 'popular' | 'price_asc' | 'price_desc' | 'az'
 
 interface Props {
   category: Category
@@ -70,8 +70,11 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
     setFavs(fm); setBuilds(bm)
   }
 
-  const applySort = useCallback((data: Part[], mode: SortMode) =>
-    mode === 'popular' ? sortByPopularity(data) : data, [])
+  const applySort = useCallback((data: Part[], mode: SortMode) => {
+    if (mode === 'popular') return sortByPopularity(data)
+    // price_asc, price_desc, az, default — already sorted server-side by enricher
+    return data
+  }, [])
 
   const smartLoad = useCallback(async (
     cat: Category, q: string, off: number, activeFilters: ActiveFilters,
@@ -83,6 +86,11 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
       if (!q.trim() || Object.keys(activeFilters).length > 0 || (!isPartNumber(q) && tokenize(q).length === 0)) {
         const params: Record<string, string | number> = { limit: LIMIT, offset: off, ...activeFilters }
         if (q.trim() && !isPartNumber(q)) params.name = q.trim()
+        // Server-side sorting for enricher sorts (position, price, az)
+        if (sortMode === 'price_asc') params.sort = 'price_asc'
+        else if (sortMode === 'price_desc') params.sort = 'price_desc'
+        else if (sortMode === 'az') params.sort = 'az'
+        // default and popular — server returns position order, client re-sorts popular
         data = await fetchParts(cat, params)
         setSearchMode('name')
         setHasMore(data.length === LIMIT)
@@ -215,14 +223,21 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
 
           {!favsMode && (
             <>
-              <button
-                className={`sort-btn${sort === 'popular' ? ' active' : ''}`}
-                onClick={() => setSort(s => s === 'popular' ? 'default' : 'popular')}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3h18M3 9h12M3 15h7M3 21h4"/></svg>
-                {sort === 'popular' ? tr.sortPopular : tr.sortDefault}
-                {sort === 'popular' && popCount > 0 && <span className="sort-count">{popCount}</span>}
-              </button>
+              <div className="sort-group">
+                {(['default','popular','price_asc','price_desc','az'] as SortMode[]).map(mode => (
+                  <button
+                    key={mode}
+                    className={`sort-chip${sort === mode ? ' active' : ''}`}
+                    onClick={() => setSort(mode)}
+                  >
+                    {mode === 'default' && tr.sortDefault}
+                    {mode === 'popular' && tr.sortPopular}
+                    {mode === 'price_asc' && tr.sortPriceAsc}
+                    {mode === 'price_desc' && tr.sortPriceDesc}
+                    {mode === 'az' && tr.sortAZ}
+                  </button>
+                ))}
+              </div>
               <FilterPanel category={category} filters={filters} onChange={setFilters} apiBase={API_BASE} tr={tr} />
             </>
           )}
@@ -260,6 +275,10 @@ export default function Catalog({ category, onSelectPart, initialPage, initialSe
               <div className="part-card-name">{part.name || '—'}</div>
               <div className="part-card-mfr">{part.manufacturer}</div>
               <div className="part-card-sub">{partSubtitle(part, category)}</div>
+              {(part as any)._price_uah
+                ? <div className="part-card-price">{((part as any)._price_uah as number).toLocaleString('uk-UA')} ₴</div>
+                : <div className="part-card-price-skeleton" />
+              }
               {!favsMode && onAddToCompare && (
                 <button
                   className={`card-compare-btn${compareIds.includes(part.opendb_id) ? " added" : ""}`}

@@ -50,7 +50,7 @@ export const t = {
     inBuild: 'В збірці', addToBuild: 'До збірки',
     inBuildTitle: 'Вже у збірці', addToBuildTitle: 'Додати до збірки',
     // Catalog
-    sortPopular: 'Популярні', sortDefault: 'Сортування',
+    sortPopular: 'Популярні', sortDefault: 'За позицією', sortPriceAsc: '↑ Ціна', sortPriceDesc: '↓ Ціна', sortAZ: 'А-Я',
     filters: 'Фільтри', filtersAny: '— Будь-який —', filtersClear: 'Скинути',
     pickFilterClear: 'скинути',
     builderLanding: 'Зібрати ПК',
@@ -102,7 +102,7 @@ export const t = {
     builderOpenPrices: 'Open products to see prices',
     inBuild: 'In build', addToBuild: 'Add to build',
     inBuildTitle: 'Already in build', addToBuildTitle: 'Add to PC build',
-    sortPopular: 'Popular', sortDefault: 'Sort',
+    sortPopular: 'Popular', sortDefault: 'By position', sortPriceAsc: '↑ Price', sortPriceDesc: '↓ Price', sortAZ: 'A-Z',
     filters: 'Filters', filtersAny: '— Any —', filtersClear: 'Clear all',
     pickFilterClear: 'clear',
     builderLanding: 'Build PC',

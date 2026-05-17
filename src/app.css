@@ -1596,3 +1596,27 @@ img { max-width: 100%; display: block; }
 .detail-action-btn.compare-action:hover { color: var(--accent); background: rgba(255,107,53,.1); }
 .detail-action-btn.compare-action.added { color: var(--accent); background: rgba(255,107,53,.1); }
 .detail-action-btn.compare-action.added:hover { background: rgba(255,107,53,.06); color: var(--text2); }
+
+/* ── Sort chips group ────────────────────────────────────────────────────────── */
+.sort-group {
+  display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap;
+}
+.sort-chip {
+  padding: 5px 11px; border-radius: 6px;
+  font-family: 'Space Mono', monospace; font-size: .68rem;
+  color: var(--text3); background: rgba(255,255,255,.04);
+  transition: all .15s; white-space: nowrap;
+}
+.sort-chip:hover { color: var(--text2); background: rgba(255,255,255,.07); }
+.sort-chip.active { color: var(--accent); background: rgba(255,107,53,.12); }
+
+/* ── Price on part card ──────────────────────────────────────────────────────── */
+.part-card-price {
+  font-family: 'Space Mono', monospace; font-size: .78rem;
+  font-weight: 700; color: var(--green); margin-top: 5px;
+}
+.part-card-price-skeleton {
+  height: 14px; width: 80px; border-radius: 3px; margin-top: 5px;
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+}

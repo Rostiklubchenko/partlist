@@ -5,9 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api/buildcores': {
-        target: 'http://localhost:8002',
-        rewrite: (path) => path.replace(/^\/api\/buildcores/, ''),
+      '/api/enricher': {
+        target: 'http://localhost:8004',
+        rewrite: (path) => path.replace(/^\/api\/enricher/, ''),
         changeOrigin: true,
       },
       '/api/rozetka': {

@@ -46,7 +46,7 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
     setLiked(isFav(part.opendb_id))
     setInBuild(Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id))
     // Refresh part data from API to get full fields (URL hash may lose numeric 0s)
-    fetchParts(part._category as Category ?? category, { opendb_id: part.opendb_id, limit: 1 })
+    fetchParts(part._category as Category ?? category, { name: part.name, limit: 1 })
       .then(data => { if (data.length > 0) setFreshPart(data[0]) })
       .catch(() => { /* silent, use cached part */ })
   }, [part.opendb_id])
@@ -70,37 +70,45 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
         setRoz({ status: 'done', data: cachedData, rozetkaUrl: cachedData.url, fromCache: true })
         return
       }
-      // Fall back to URL cache only
-      const cached = cacheGet(cacheId, 'rozetka')
-      if (cached) {
-        setRoz({ status: 'parsing', rozetkaUrl: cached, fromCache: true })
-        try {
-          const data = await parseRozetka(cached)
-          if (!data.price) { /* keep going */ } else {
-            cacheSetRozetka(cacheId, data as any)
-            if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
-            setRoz({ status: 'done', data, rozetkaUrl: cached, fromCache: true })
-            return
-          }
-        } catch { cacheInvalidate(cacheId, 'rozetka') }
-      }
     }
-    setRoz({ status: 'searching' })
-    try {
-      let results = await serpSearch(buildRozetkaQuery(part))
-      let url = findRozetkaUrl(results)
-      if (!url && part.name) { results = await serpSearch(`${part.name} site:rozetka.com.ua`); url = findRozetkaUrl(results) }
-      if (!url) { setRoz({ status: 'error', error: `No Rozetka product page found (${results.length} results)` }); return }
-      cacheSet(cacheId, 'rozetka', url)
-      const serpPrice = extractRozetkaPrice(results)
-      setRoz({ status: 'parsing', rozetkaUrl: url })
-      const data = await parseRozetka(url)
-      if (!data.price && serpPrice) data.price = serpPrice.price
-      if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
-      // Cache full data
-      if (data.price) cacheSetRozetka(cacheId, data as any)
-      setRoz({ status: 'done', data, rozetkaUrl: url })
-    } catch (e) { setRoz({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
+
+    // If part came from enricher, it already has the Rozetka URL — no SerpApi needed!
+    const directUrl = (part as any)._rozetka_url as string | undefined
+    const cachedUrl = cacheGet(cacheId, 'rozetka')
+    const rozetkaUrl = directUrl || cachedUrl
+
+    if (rozetkaUrl) {
+      setRoz({ status: 'parsing', rozetkaUrl, fromCache: !!cachedUrl })
+      try {
+        const data = await parseRozetka(rozetkaUrl)
+        if (data.price) {
+          cacheSetRozetka(cacheId, data as any)
+          cacheSet(cacheId, 'rozetka', rozetkaUrl)
+          if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
+          setRoz({ status: 'done', data, rozetkaUrl, fromCache: false })
+          return
+        }
+      } catch { if (cachedUrl) cacheInvalidate(cacheId, 'rozetka') }
+    }
+
+    // Fallback: SerpApi (only if no URL available)
+    if (!rozetkaUrl || forceRefresh) {
+      setRoz({ status: 'searching' })
+      try {
+        let results = await serpSearch(buildRozetkaQuery(part))
+        let url = findRozetkaUrl(results)
+        if (!url && part.name) { results = await serpSearch(`${part.name} site:rozetka.com.ua`); url = findRozetkaUrl(results) }
+        if (!url) { setRoz({ status: 'error', error: `No Rozetka product page found` }); return }
+        cacheSet(cacheId, 'rozetka', url)
+        const serpPrice = extractRozetkaPrice(results)
+        setRoz({ status: 'parsing', rozetkaUrl: url })
+        const data = await parseRozetka(url)
+        if (!data.price && serpPrice) data.price = serpPrice.price
+        if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
+        if (data.price) cacheSetRozetka(cacheId, data as any)
+        setRoz({ status: 'done', data, rozetkaUrl: url })
+      } catch (e) { setRoz({ status: 'error', error: e instanceof Error ? e.message : 'Error' }) }
+    }
   }
 
   async function handleShops(forceRefresh = false) {
@@ -162,7 +170,7 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
   const specs   = buildSpecList(freshPart, category, tr)
   const rozBusy = roz.status === 'searching' || roz.status === 'parsing'
   const hotBusy = hot.status === 'searching' || hot.status === 'parsing'
-  const mainImg = roz.data?.image || null
+  const mainImg = roz.data?.image || (part as any)._image_url || null
 
   return (
     <div className="detail">
@@ -350,8 +358,11 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
           {tab === 'specs' && (
             <div className="specs-block tab-panel">
               <table className="specs-table specs-table-sm"><tbody>
-                {specs.map(([k, v]) => (
-                  <tr key={k}><td className="spec-key">{k}</td><td className="spec-val">{v}</td></tr>
+                {(buildSpecsFromEnricher(freshPart).length > 0
+                  ? buildSpecsFromEnricher(freshPart)
+                  : specs
+                ).map(([k, v]) => (
+                  <tr key={k}><td className="spec-key">{k}</td><td className="spec-val">{String(v)}</td></tr>
                 ))}
               </tbody></table>
             </div>
@@ -586,6 +597,15 @@ function formatValue(val: unknown): string {
   }
 
   return s
+}
+
+// Render raw specs from enricher directly (most accurate)
+function buildSpecsFromEnricher(part: Part): [string, string][] {
+  const specs = (part as any)._specs as Record<string, string> | undefined
+  if (!specs || Object.keys(specs).length === 0) return []
+  return Object.entries(specs)
+    .filter(([, v]) => v && v.trim())
+    .map(([k, v]) => [k, v] as [string, string])
 }
 
 function buildSpecList(part: Part, category: Category, tr: Translations): [string, string][] {
