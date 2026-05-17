@@ -30,6 +30,7 @@ function parsePrice(p: string): number {
 
 export default function PartDetail({ part, category, onBack, tr, onAddToCompare, onRemoveFromCompare, compareIds = [] }: Props) {
   const [freshPart, setFreshPart] = useState<Part>(part)
+  const [specsLoading, setSpecsLoading] = useState(false)
   const [roz, setRoz]           = useState<RozState>({ status: 'idle' })
   const [hot, setHot]           = useState<ShopsState>({ status: 'idle' })
   const [lightbox, setLightbox] = useState<{ photos: string[]; idx: number } | null>(null)
@@ -47,7 +48,18 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
     setInBuild(Object.values(getBuild()).some(e => e?.part.opendb_id === part.opendb_id))
     // Refresh part data from API to get full fields (URL hash may lose numeric 0s)
     fetchParts(part._category as Category ?? category, { name: part.name, limit: 1 })
-      .then(data => { if (data.length > 0) setFreshPart(data[0]) })
+      .then(data => {
+        if (data.length > 0) {
+          const refreshed = data[0]
+          setFreshPart(refreshed)
+          // If specs are empty — enricher hasn't parsed this yet
+          // handleRozetka will parse the page and we'll use characteristics from there
+          const specs = (refreshed as any)._specs as Record<string, string> | undefined
+          if (!specs || Object.keys(specs).length === 0) {
+            setSpecsLoading(true)
+          }
+        }
+      })
       .catch(() => { /* silent, use cached part */ })
   }, [part.opendb_id])
 
@@ -67,6 +79,16 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
       // Try full data cache first (6h TTL)
       const cachedData = cacheGetRozetka(cacheId)
       if (cachedData) {
+        if (cachedData.characteristics && Object.keys(cachedData.characteristics).length > 0) {
+          setFreshPart(prev => {
+            const existing = (prev as any)._specs
+            if (!existing || Object.keys(existing).length === 0) {
+              return { ...prev, _specs: cachedData.characteristics } as Part
+            }
+            return prev
+          })
+          setSpecsLoading(false)
+        }
         setRoz({ status: 'done', data: cachedData, rozetkaUrl: cachedData.url, fromCache: true })
         return
       }
@@ -85,7 +107,12 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
           cacheSetRozetka(cacheId, data as any)
           cacheSet(cacheId, 'rozetka', rozetkaUrl)
           if (data.rating || data.reviews_count) trackRozetkaData(cacheId, parseFloat(data.rating || '0'), parseInt(data.reviews_count || '0', 10))
-          setRoz({ status: 'done', data, rozetkaUrl, fromCache: false })
+          // If part has no specs yet, use characteristics from rozetka parse
+        if (data.characteristics && Object.keys(data.characteristics).length > 0) {
+          setFreshPart(prev => ({ ...prev, _specs: data.characteristics } as Part))
+          setSpecsLoading(false)
+        }
+        setRoz({ status: 'done', data, rozetkaUrl, fromCache: false })
           return
         }
       } catch { if (cachedUrl) cacheInvalidate(cacheId, 'rozetka') }
@@ -357,14 +384,21 @@ export default function PartDetail({ part, category, onBack, tr, onAddToCompare,
 
           {tab === 'specs' && (
             <div className="specs-block tab-panel">
-              <table className="specs-table specs-table-sm"><tbody>
-                {(buildSpecsFromEnricher(freshPart).length > 0
-                  ? buildSpecsFromEnricher(freshPart)
-                  : specs
-                ).map(([k, v]) => (
-                  <tr key={k}><td className="spec-key">{k}</td><td className="spec-val">{String(v)}</td></tr>
-                ))}
-              </tbody></table>
+              {specsLoading && buildSpecsFromEnricher(freshPart).length === 0 ? (
+                <div className="specs-loading">
+                  <span className="spinner" />
+                  <span>{'Завантаження характеристик…'}</span>
+                </div>
+              ) : (
+                <table className="specs-table specs-table-sm"><tbody>
+                  {(buildSpecsFromEnricher(freshPart).length > 0
+                    ? buildSpecsFromEnricher(freshPart)
+                    : specs
+                  ).map(([k, v]) => (
+                    <tr key={k}><td className="spec-key">{k}</td><td className="spec-val">{String(v)}</td></tr>
+                  ))}
+                </tbody></table>
+              )}
             </div>
           )}
         </div>

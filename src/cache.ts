@@ -49,6 +49,7 @@ export interface CachedRozetkaData {
   rating: string
   reviews_count: string
   url: string
+  characteristics?: Record<string, string>
 }
 
 export function cacheGetRozetka(id: string): CachedRozetkaData | null {

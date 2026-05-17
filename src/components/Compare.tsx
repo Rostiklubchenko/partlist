@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { Part, Category } from '../types'
 import type { Translations } from '../i18n'
 import { CategoryIcon } from './Icons'
@@ -12,126 +12,70 @@ interface Props {
   tr: Translations
 }
 
-function formatValue(val: unknown): string {
+function fv(val: unknown): string {
   if (val == null || val === '' || val === undefined) return '—'
-  if (val === 0) return '0'
   const s = String(val)
-  if (s === '1') return '✓'
-  if (s === '0') return '✗'
-  if (s.startsWith('[') || s.startsWith('{')) {
+  if (s === '0' || s === '1') return s === '1' ? '✓' : '✗'
+  if (s.startsWith('[')) {
     try {
-      const parsed = JSON.parse(s)
-      if (Array.isArray(parsed)) {
-        const formatted = parsed.map(item => {
+      const arr = JSON.parse(s)
+      if (Array.isArray(arr)) {
+        const parts = arr.map((item: unknown) => {
           if (typeof item === 'object' && item !== null) {
-            const parts: string[] = []
-            if (item.size) parts.push(item.size)
-            if (item.interface) parts.push(item.interface)
-            return parts.join(' ')
+            const o = item as Record<string, string>
+            return [o.size, o.interface].filter(Boolean).join(' ')
           }
           return String(item)
         })
-        const unique = [...new Set(formatted)]
-        if (unique.length === 1) return `${unique[0]} ×${parsed.length}`
-        return unique.map(u => {
-          const count = formatted.filter(f => f === u).length
-          return count > 1 ? `${u} ×${count}` : u
-        }).join(', ')
+        const uniq = [...new Set(parts)]
+        if (uniq.length === 1) return `${uniq[0]} ×${arr.length}`
+        return uniq.join(', ')
       }
-    } catch { /* not JSON */ }
-  }
-  if (s.startsWith('["')) {
-    try { return (JSON.parse(s) as string[]).join(', ') } catch { /* noop */ }
+    } catch { /* noop */ }
   }
   return s
 }
 
-// Fields per category
-const FIELDS: Partial<Record<Category, { key: string; label: (tr: Translations) => string }[]>> = {
-  cpu: [
-    { key: 'manufacturer',        label: tr => tr.cpu === 'Процесори' ? 'Виробник' : 'Manufacturer' },
-    { key: 'socket',              label: tr => tr.socket },
-    { key: 'microarchitecture',   label: tr => tr.architecture },
-    { key: 'total_cores',         label: tr => tr.cores },
-    { key: 'threads',             label: tr => tr.threads },
-    { key: 'base_clock_ghz',      label: tr => tr.baseClock },
-    { key: 'boost_clock_ghz',     label: tr => tr.boostClock },
-    { key: 'l3_cache_mb',         label: tr => tr.l3cache },
-    { key: 'tdp_w',               label: tr => tr.tdp },
-    { key: 'integrated_graphics', label: tr => tr.igpu },
-    { key: 'lithography',         label: tr => tr.lithography },
-    { key: 'memory_types',        label: tr => tr.memory },
-  ],
-  gpu: [
-    { key: 'manufacturer',          label: tr => tr.cpu === 'Процесори' ? 'Виробник' : 'Manufacturer' },
-    { key: 'chipset',               label: tr => tr.chipset },
-    { key: 'memory_gb',             label: tr => tr.memory },
-    { key: 'memory_type',           label: tr => tr.memoryType },
-    { key: 'core_base_clock_mhz',   label: tr => tr.coreBase },
-    { key: 'core_boost_clock_mhz',  label: tr => tr.coreBoost },
-    { key: 'memory_bus_bit',        label: tr => tr.busWidth },
-    { key: 'tdp_w',                 label: tr => tr.tdp },
-    { key: 'length_mm',             label: tr => tr.length },
-    { key: 'total_slot_width',      label: tr => tr.slotWidth },
-    { key: 'interface',             label: tr => tr.interface },
-  ],
-  motherboard: [
-    { key: 'manufacturer',  label: tr => tr.cpu === 'Процесори' ? 'Виробник' : 'Manufacturer' },
-    { key: 'socket',        label: tr => tr.socket },
-    { key: 'chipset',       label: tr => tr.chipset },
-    { key: 'form_factor',   label: tr => tr.formFactor },
-    { key: 'ram_type',      label: tr => tr.ramType },
-    { key: 'ram_slots',     label: tr => tr.ramSlots },
-    { key: 'max_memory_gb', label: tr => tr.maxRam },
-    { key: 'sata_6gbs',     label: tr => tr.sata },
-    { key: 'm2_slots',      label: tr => tr.m2 },
-    { key: 'wifi',          label: tr => tr.wifi },
-    { key: 'bluetooth',     label: tr => tr.bluetooth },
-  ],
-  ram: [
-    { key: 'manufacturer',     label: tr => tr.cpu === 'Процесори' ? 'Виробник' : 'Manufacturer' },
-    { key: 'ram_type',         label: tr => tr.ramType },
-    { key: 'form_factor',      label: tr => tr.formFactor },
-    { key: 'total_capacity_gb',label: tr => tr.capacity },
-    { key: 'module_count',     label: tr => tr.modules },
-    { key: 'speed_mhz',        label: tr => tr.speed },
-    { key: 'cas_latency',      label: tr => tr.casLatency },
-    { key: 'voltage_v',        label: tr => tr.voltage },
-    { key: 'rgb',              label: tr => tr.rgb },
-    { key: 'profile_support',  label: tr => tr.profiles },
-  ],
-  psu: [
-    { key: 'manufacturer',     label: tr => tr.cpu === 'Процесори' ? 'Виробник' : 'Manufacturer' },
-    { key: 'wattage',          label: tr => tr.wattage },
-    { key: 'form_factor',      label: tr => tr.formFactor },
-    { key: 'efficiency_rating',label: tr => tr.efficiency },
-    { key: 'modular',          label: tr => tr.modular },
-    { key: 'length_mm',        label: tr => tr.length },
-    { key: 'fanless',          label: tr => tr.fanless },
-    { key: 'conn_atx_24pin',   label: tr => tr.atx24 },
-    { key: 'conn_eps_8pin',    label: tr => tr.eps8 },
-    { key: 'conn_pcie_6p2pin', label: tr => tr.pcie62 },
-    { key: 'conn_sata',        label: tr => tr.sataConn },
-  ],
-  storage: [
-    { key: 'manufacturer',  label: tr => tr.cpu === 'Процесори' ? 'Виробник' : 'Manufacturer' },
-    { key: 'storage_type',  label: tr => tr.storageType },
-    { key: 'form_factor',   label: tr => tr.formFactor },
-    { key: 'interface',     label: tr => tr.interface },
-    { key: 'capacity_gb',   label: tr => tr.capacity },
-    { key: 'nvme',          label: tr => tr.nvme },
-    { key: 'read_speed_mbs',label: tr => tr.readSpeed },
-    { key: 'write_speed_mbs',label: tr => tr.writeSpeed },
-    { key: 'cache_mb',      label: tr => tr.cache },
-    { key: 'rpm',           label: tr => tr.rpm },
-  ],
+// Get all spec keys for a set of parts (from _specs), union of all keys
+function getSpecKeys(parts: Part[]): string[] {
+  const keySet = new Set<string>()
+  for (const p of parts) {
+    const specs = (p as any)._specs as Record<string, string> | undefined
+    if (specs) Object.keys(specs).forEach(k => keySet.add(k))
+  }
+  return [...keySet]
+}
+
+function getSpecValue(part: Part, key: string): string {
+  const specs = (part as any)._specs as Record<string, string> | undefined
+  return fv(specs?.[key])
 }
 
 export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: Props) {
-  // Group entries by category
-  const categories = [...new Set(entries.map(e => e.category))] as Category[]
-  const [activeTab, setActiveTab] = useState<Category | null>(() => categories[0] ?? null)
+  const categories = useMemo(() => [...new Set(entries.map(e => e.category))] as Category[], [entries])
+  const [activeTab, setActiveTab] = useState<Category>(() => categories[0] ?? 'cpu')
   const [diffOnly, setDiffOnly] = useState(false)
+
+  // Keep activeTab valid when entries change
+  const currentCat = categories.includes(activeTab) ? activeTab : (categories[0] ?? 'cpu')
+  const tabEntries = entries.filter(e => e.category === currentCat)
+  const tabParts = tabEntries.map(e => e.part)
+
+  // Build spec rows from _specs
+  const allKeys = useMemo(() => getSpecKeys(tabParts), [tabEntries])
+
+  const rows = useMemo(() => {
+    return allKeys
+      .map(key => ({
+        key,
+        vals: tabParts.map(p => getSpecValue(p, key)),
+      }))
+      .filter(r => r.vals.some(v => v !== '—'))
+  }, [allKeys, tabEntries])
+
+  const visibleRows = diffOnly
+    ? rows.filter(r => new Set(r.vals).size > 1)
+    : rows
 
   if (entries.length === 0) {
     return (
@@ -143,27 +87,8 @@ export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: 
     )
   }
 
-  const currentCat = activeTab ?? categories[0]
-  const tabEntries = entries.filter(e => e.category === currentCat)
-  const fields = FIELDS[currentCat] ?? []
-
-  const activeFields = fields.filter(f =>
-    tabEntries.some(e => {
-      const v = formatValue((e.part as Record<string, unknown>)[f.key])
-      return v && v !== '—'
-    })
-  )
-
-  const visibleFields = diffOnly
-    ? activeFields.filter(f => {
-        const vals = tabEntries.map(e => formatValue((e.part as Record<string, unknown>)[f.key]))
-        return new Set(vals).size > 1
-      })
-    : activeFields
-
   return (
     <div className="compare">
-      {/* Header */}
       <div className="compare-header">
         <h2 className="compare-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
@@ -177,7 +102,6 @@ export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: 
         </div>
       </div>
 
-      {/* Category tabs — only shown when multiple categories */}
       {categories.length > 1 && (
         <div className="compare-tabs">
           {categories.map(cat => (
@@ -194,7 +118,6 @@ export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: 
         </div>
       )}
 
-      {/* Table */}
       <div className="compare-table-wrap">
         <table className="compare-table">
           <thead>
@@ -203,10 +126,18 @@ export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: 
               {tabEntries.map(e => (
                 <th key={e.part.opendb_id} className="compare-th-part">
                   <div className="compare-part-head">
+                    {(e.part as any)._image_url && (
+                      <img src={(e.part as any)._image_url} alt="" className="compare-part-img" />
+                    )}
                     <button className="compare-part-name" onClick={() => onViewPart(e.part, e.category)}>
                       {e.part.name}
                     </button>
                     <span className="compare-part-mfr">{e.part.manufacturer}</span>
+                    {(e.part as any)._price_uah && (
+                      <span className="compare-part-price">
+                        {((e.part as any)._price_uah as number).toLocaleString('uk-UA')} ₴
+                      </span>
+                    )}
                     <button className="compare-remove-btn" onClick={() => onRemove(e.part.opendb_id)} title={tr.compareRemove}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                     </button>
@@ -216,12 +147,20 @@ export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: 
             </tr>
           </thead>
           <tbody>
-            {visibleFields.map(field => {
-              const vals = tabEntries.map(e => formatValue((e.part as Record<string, unknown>)[field.key]))
+            {visibleRows.length === 0 && (
+              <tr>
+                <td className="compare-td-label" colSpan={tabEntries.length + 1} style={{textAlign:'center', padding:'24px', color:'var(--text3)'}}>
+                  {(tabParts.some(p => (p as any)._specs && Object.keys((p as any)._specs).length > 0))
+                    ? diffOnly ? tr.compareDiff + ' — ' + tr.compareEmpty : tr.compareEmpty
+                    : 'Характеристики ще завантажуються...'}
+                </td>
+              </tr>
+            )}
+            {visibleRows.map(({ key, vals }) => {
               const isDiff = new Set(vals).size > 1
               return (
-                <tr key={field.key} className={isDiff ? 'compare-row-diff' : ''}>
-                  <td className="compare-td-label">{field.label(tr)}</td>
+                <tr key={key} className={isDiff ? 'compare-row-diff' : ''}>
+                  <td className="compare-td-label">{key}</td>
                   {vals.map((v, i) => (
                     <td key={i} className={`compare-td-val${isDiff ? ' diff' : ''}`}>{v}</td>
                   ))}
@@ -232,7 +171,6 @@ export default function Compare({ entries, onRemove, onClear, onViewPart, tr }: 
         </table>
       </div>
 
-      {/* Info if mixed categories */}
       {categories.length > 1 && (
         <p className="compare-mixed-note">{tr.compareOneCat}</p>
       )}

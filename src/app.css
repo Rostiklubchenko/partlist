@@ -1620,3 +1620,21 @@ img { max-width: 100%; display: block; }
   background: linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%);
   background-size: 200% 100%; animation: shimmer 1.4s infinite;
 }
+
+/* ── Compare part header image ───────────────────────────────────────────────── */
+.compare-part-img {
+  width: 64px; height: 64px; object-fit: contain;
+  background: white; border-radius: 6px; margin-bottom: 6px;
+  align-self: center;
+}
+.compare-part-price {
+  font-family: 'Space Mono', monospace; font-size: .82rem;
+  font-weight: 700; color: var(--green); margin-top: 2px;
+}
+
+/* ── Specs loading ───────────────────────────────────────────────────────────── */
+.specs-loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 24px 0; color: var(--text3);
+  font-family: 'Space Mono', monospace; font-size: .78rem;
+}
