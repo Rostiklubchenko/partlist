@@ -103,7 +103,10 @@ export default function Builder({ tr, onSelectSlot, onViewPart }: Props) {
   const filled = SLOTS.filter(s => build[s]).length
 
   return (
-    <div className="builder">
+    <div className="builder-page">
+      {/* Left: Build slots */}
+      <div className="builder-left">
+      <div className="builder">
       <div className="builder-header">
         <div className="builder-title-row">
           <h2 className="builder-title">
@@ -181,13 +184,6 @@ export default function Builder({ tr, onSelectSlot, onViewPart }: Props) {
         })}
       </div>
 
-      {/* AI Builder */}
-      <AiBuilder
-        tr={tr}
-        onApplySuggestions={handleAiSuggestions}
-        currentBuild={build as any}
-      />
-
       {/* Total */}
       {filled > 0 && (
         <div className="builder-footer">
@@ -202,6 +198,17 @@ export default function Builder({ tr, onSelectSlot, onViewPart }: Props) {
           </div>
         </div>
       )}
+    </div>{/* .builder */}
+      </div>{/* .builder-left */}
+
+      {/* Right: AI Assistant */}
+      <div className="builder-right">
+        <AiBuilder
+          tr={tr}
+          onApplySuggestions={handleAiSuggestions}
+          currentBuild={build as any}
+        />
+      </div>
     </div>
   )
 }

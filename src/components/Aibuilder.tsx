@@ -50,23 +50,61 @@ async function fetchCatalogCategory(cat: string): Promise<any[]> {
   } catch { return [] }
 }
 
-async function buildCatalogContext(): Promise<{ text: string; products: Record<string, any[]> }> {
+// Rough budget split per component category (% of total budget)
+const BUDGET_SPLIT: Record<Category, number> = {
+  gpu: 0.38, cpu: 0.20, motherboard: 0.12, ram: 0.10, psu: 0.08, storage: 0.08,
+}
+// For office/no-gpu builds
+const BUDGET_SPLIT_OFFICE: Record<Category, number> = {
+  cpu: 0.30, motherboard: 0.18, ram: 0.16, storage: 0.14, psu: 0.12, gpu: 0.00,
+}
+
+function extractBudget(text: string): number | null {
+  const m = text.match(/(\d[\d\s]*)[кК]?(₴|грн|000)?/)
+  if (!m) return null
+  const raw = m[1].replace(/\s/g, '')
+  let n = parseInt(raw)
+  if (text.toLowerCase().includes('к') || (n < 1000 && text.includes('000'))) n *= 1000
+  if (n < 5000 || n > 500000) return null
+  return n
+}
+
+async function buildCatalogContext(userMsg = ''): Promise<{ text: string; products: Record<string, any[]> }> {
+  const budget = extractBudget(userMsg)
+  const isOffice = /офіс|робот|word|excel|browse|навч/i.test(userMsg)
+  const split = isOffice ? BUDGET_SPLIT_OFFICE : BUDGET_SPLIT
   const summaries: string[] = []
   const products: Record<string, any[]> = {}
 
-  for (const [cat, catName] of Object.entries(CATALOG_CATS)) {
+  await Promise.all(Object.entries(CATALOG_CATS).map(async ([cat, catName]) => {
     const list = await fetchCatalogCategory(catName)
     products[catName] = list
-    if (!list.length) continue
-    const lines = list
-      .filter((p: any) => p.price_uah)
-      .slice(0, 50)
-      .map((p: any) => {
-        const slug = p.url?.split('/').filter(Boolean).slice(-2, -1)[0] ?? ''
-        return `  [${slug}] ${p.name} | ${p.price_uah}₴ | ⭐${p.rating ?? '?'}(${p.reviews_count ?? 0})`
-      })
-    summaries.push(`### ${cat} (${catName})\n${lines.join('\n')}`)
-  }
+    if (!list.length) return
+
+    const withPrice = list.filter((p: any) => p.price_uah && p.price_uah > 0)
+
+    // Filter by budget range if budget known: show items in 50%–200% of category target
+    let filtered = withPrice
+    if (budget) {
+      const catBudget = budget * (split[cat as Category] ?? 0.15)
+      const lo = catBudget * 0.4
+      const hi = catBudget * 2.5
+      const inRange = withPrice.filter((p: any) => p.price_uah >= lo && p.price_uah <= hi)
+      filtered = inRange.length >= 3 ? inRange : withPrice
+    }
+
+    // Sort by rating*reviews score (balanced quality signal), take top 20
+    const scored = filtered
+      .map((p: any) => ({ ...p, _score: (p.rating ?? 0) * Math.log1p(p.reviews_count ?? 0) }))
+      .sort((a: any, b: any) => b._score - a._score)
+      .slice(0, 20)
+
+    const lines = scored.map((p: any) => {
+      const slug = p.url?.split('/').filter(Boolean).slice(-2, -1)[0] ?? ''
+      return `  [${slug}] ${p.name} | ${p.price_uah}₴ | ⭐${p.rating ?? '?'}(${p.reviews_count ?? 0})`
+    })
+    summaries.push(`### ${cat}\n${lines.join('\n')}`)
+  }))
 
   return { text: summaries.join('\n\n'), products }
 }
@@ -145,10 +183,10 @@ export default function AiBuilder({ tr, onApplySuggestions, currentBuild }: Prop
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [displayMessages])
 
-  async function ensureCatalog() {
+  async function ensureCatalog(userMsg = '') {
     if (catalogCtx) return catalogCtx
     setCatalogStatus('loading')
-    const ctx = await buildCatalogContext()
+    const ctx = await buildCatalogContext(userMsg)
     setCatalogCtx(ctx)
     setCatalogStatus('ready')
     return ctx
@@ -168,7 +206,7 @@ export default function AiBuilder({ tr, onApplySuggestions, currentBuild }: Prop
     setDisplayMessages(prev => [...prev, { role: 'assistant', text: '', streaming: true }])
 
     try {
-      const ctx = await ensureCatalog()
+      const ctx = await ensureCatalog(userText)
 
       const buildDesc = Object.entries(currentBuild)
         .map(([slot, e]) => `${slot}: ${e.part.name}`).join(', ')

@@ -1825,3 +1825,54 @@ img { max-width: 100%; display: block; }
   line-height: 1.5; white-space: pre-wrap; max-height: 200px;
   overflow-y: auto; border-top: 1px solid rgba(255,255,255,.05);
 }
+
+/* ══ BUILDER PAGE LAYOUT ══════════════════════════════════════════════════════ */
+.builder-page {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 20px;
+  align-items: start;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.builder-left {
+  min-width: 0;
+}
+
+.builder-right {
+  position: sticky;
+  top: 72px;
+  min-width: 0;
+}
+
+/* Remove old max-width on .builder since layout is now controlled by page */
+.builder-left .builder {
+  max-width: none;
+  margin: 0;
+}
+
+/* AI builder fills the right column height nicely */
+.builder-right .ai-builder {
+  max-height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+}
+
+.builder-right .ai-messages {
+  max-height: none;
+  flex: 1;
+  min-height: 200px;
+}
+
+@media (max-width: 900px) {
+  .builder-page {
+    grid-template-columns: 1fr;
+  }
+  .builder-right {
+    position: static;
+  }
+  .builder-right .ai-builder {
+    max-height: 520px;
+  }
+}
