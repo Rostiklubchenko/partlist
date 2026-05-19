@@ -178,13 +178,17 @@ export default function AiBuilder({ tr, onApplySuggestions, currentBuild }: Prop
   const [catalogStatus, setCatalogStatus] = useState<'idle' | 'loading' | 'ready'>('idle')
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const lastUserMsg = useRef('')
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [displayMessages])
 
   async function ensureCatalog(userMsg = '') {
-    if (catalogCtx) return catalogCtx
+    // Rebuild catalog context if budget likely changed (new message)
+    const budget = extractBudget(userMsg)
+    const prevBudget = catalogCtx ? extractBudget(lastUserMsg.current) : null
+    if (catalogCtx && budget === prevBudget) return catalogCtx
     setCatalogStatus('loading')
     const ctx = await buildCatalogContext(userMsg)
     setCatalogCtx(ctx)
@@ -197,6 +201,7 @@ export default function AiBuilder({ tr, onApplySuggestions, currentBuild }: Prop
 
     const userText = input.trim()
     setInput('')
+    lastUserMsg.current = userText
 
     const userDisplay: DisplayMessage = { role: 'user', text: userText }
     setDisplayMessages(prev => [...prev, userDisplay])
@@ -206,13 +211,17 @@ export default function AiBuilder({ tr, onApplySuggestions, currentBuild }: Prop
     setDisplayMessages(prev => [...prev, { role: 'assistant', text: '', streaming: true }])
 
     try {
-      const ctx = await ensureCatalog(userText)
+      // Only load catalog if user seems to want a build
+      const needsBuild = /бюджет|₴|грн|ігр|офіс|збір|підбер|порад|відео|монтаж|\d{4,}/i.test(userText) ||
+        history.some(m => m.role === 'assistant' && m.content?.includes('```json'))
+      const ctx = needsBuild ? await ensureCatalog(userText) : { text: '', products: {} }
 
       const buildDesc = Object.entries(currentBuild)
         .map(([slot, e]) => `${slot}: ${e.part.name}`).join(', ')
       const buildCtx = buildDesc ? `\nПоточна збірка: ${buildDesc}` : ''
 
-      const systemContent = `${SYSTEM_PROMPT}\n\nАКТУАЛЬНИЙ КАТАЛОГ ROZETKA:\n${ctx.text}${buildCtx}`
+      const catalogSection = ctx.text ? `\n\nАКТУАЛЬНИЙ КАТАЛОГ ROZETKA:\n${ctx.text}` : ''
+      const systemContent = `${SYSTEM_PROMPT}${catalogSection}${buildCtx}`
 
       // Build messages array: system + history + new user message
       const newUserMsg: Message = { role: 'user', content: userText }
@@ -226,19 +235,21 @@ export default function AiBuilder({ tr, onApplySuggestions, currentBuild }: Prop
       const timeout = setTimeout(() => controller.abort(), 120_000)
 
       // Show thinking indicator while waiting
-      let dotCount = 0
+      const thinkingStates = needsBuild
+        ? ['Завантажую каталог…', 'Аналізую варіанти…', 'Перевіряю сумісність…', 'Формую відповідь…']
+        : ['Думаю…', 'Підбираю відповідь…']
+      let thinkingIdx = 0
       const thinkingInterval = setInterval(() => {
-        dotCount = (dotCount + 1) % 4
-        const dots = '.'.repeat(dotCount + 1)
+        thinkingIdx = (thinkingIdx + 1) % thinkingStates.length
         setDisplayMessages(prev => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
           if (last?.streaming) {
-            updated[updated.length - 1] = { ...last, text: `Думаю${dots}` }
+            updated[updated.length - 1] = { ...last, text: thinkingStates[thinkingIdx] }
           }
           return updated
         })
-      }, 600)
+      }, 1800)
 
       let fullContent = ''
       let fullReasoning = ''
